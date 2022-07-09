@@ -9,4 +9,6 @@ $ python <SCRIPT_NAME>.py
 ```
 
 ## Results
-
+![image](screenshots/Screenshot%20from%202022-06-27%2012-00-44.png)
+![image](screenshots/Screenshot%20from%202022-06-27%2012-01-30.png)
+![image](screenshots/Screenshot%20from%202022-06-27%2012-02-30.png)
