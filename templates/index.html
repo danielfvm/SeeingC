@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Seeing Interface</title>
+        <link rel="stylesheet" type="text/css" href="static/global.css">
+		<script src="static/jquery-3.1.0.min.js"></script>
+		<script src="static/Chart.js"></script>
+		<script src="static/global.js"></script>
+	</head>
+	<body>
+		<div class="option_view">
+			<h2>settings</h2>
+			{{#options}}
+				<div class="option">
+					<p>{{name}}</p>
+					{{{html}}}
+				</div>
+			{{/options}}
+		</div>
+
+		<div id="viewport">
+			<div id="zoom">
+				<img data-lazysrc="/image" id="image">
+				<canvas id="canvas"></canvas>
+				<p id="imginfo"></p>
+			</div>
+		</div>
+
+		<div id="status">Loading</div>
+
+		<div id="chartwrapper">
+			<canvas id="chart"></canvas>
+		</div>
+	</body>
+</html>

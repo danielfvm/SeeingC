@@ -1,0 +1,9 @@
+longitude=16.0672
+v_threshold=0
+measurements=10
+star_size=100
+measure_mode=1
+capture_mode=0
+roi=256
+gain=300
+exposure=10
