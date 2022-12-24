@@ -3,12 +3,10 @@ This project uses an ASI-Camera for capturing video of the Polarstar. The video 
 
 ## Installation
 ```
-$ pip install -r requirements.txt
-$ export ZWO_ASI_LIB=/PATH/TO/libASICamera2.so
-$ python <SCRIPT_NAME>.py
+$ git clone https://github.com/danielfvm/SeeingC
+$ cd SeeingC
+$ mkdir build
+$ cd build
+$ cmake ..
+$ make
 ```
-
-## Results
-![image](screenshots/Screenshot%20from%202022-06-27%2012-00-44.png)
-![image](screenshots/Screenshot%20from%202022-06-27%2012-01-30.png)
-![image](screenshots/Screenshot%20from%202022-06-27%2012-02-30.png)
