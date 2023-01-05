@@ -1,0 +1,12 @@
+[Unit]
+Description=Seeing service
+
+[Service]
+Type=simple
+ExecStart=/opt/seeing/start.sh
+Restart=on-failure
+RestartSec=10
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

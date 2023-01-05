@@ -44,3 +44,5 @@
 
 build/**/*
 bin/*
+
+*.tar.xz

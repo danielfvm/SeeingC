@@ -101,7 +101,7 @@ public:
 	void close() { 
 		if (m_opened) {
 			ASIStopVideoCapture(m_id);
-			ASICloseCamera(m_id);
+			//ASICloseCamera(m_id);
 			m_opened = false;
 		}
 	}

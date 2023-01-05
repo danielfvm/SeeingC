@@ -56,7 +56,7 @@ public:
 	std::string get_html(const char* id) {
 		std::string input;
 		if (m_step == 1) {
-			input = fmt("<input id=\"%s\" type=\"number\" value=\"%d\" min=\"%d\" max=\"%d\" step=\"%d\" />", id, m_value, m_min, m_max, m_step);
+			input = fmt("<input id=\"%s\" type=\"number\" value=\"%d\" min=\"%d\" max=\"%d\" step=\"%d\" />", id, (int)m_value, (int)m_min, (int)m_max, m_step);
 		} else {
 			input = fmt("<input id=\"%s\" type=\"number\" value=\"%0.5f\" min=\"%f\" max=\"%f\" />", id, m_value, m_min, m_max);
 		}

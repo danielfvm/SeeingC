@@ -10,13 +10,14 @@
 
 WebServer::WebServer(Settings &settings, int port)
     : m_settings(settings), m_port(port), m_thread(nullptr) {
+
   CROW_ROUTE(m_app, "/")
   ([&](const crow::request &req) {
     crow::mustache::context ctx;
     ctx["options"] = settings.json();
     ctx["rand"] = std::rand();
 
-    auto page = crow::mustache::load("./index.html");
+    auto page = crow::mustache::load("index.html");
     return page.render(ctx);
   });
 

@@ -10,7 +10,7 @@
 
 #include "serial.h"
 
-SerialManager::SerialManager(const std::string& device) : m_running(false), m_seeing(0) {
+SerialManager::SerialManager(const std::string& device) : m_running(false), m_seeing(0), m_thread(nullptr) {
 	open_uart(device);
 }
 
@@ -19,6 +19,7 @@ bool SerialManager::open_uart(const std::string& device) {
 
 	if (m_fd < 0) {
 		std::cerr << "Failed to open serial port: " << device << std::endl;
+		m_thread = nullptr;
 		return false;
 	}
 
@@ -68,6 +69,7 @@ void SerialManager::exec(SerialManager* serial) {
 void SerialManager::listen() { 
 	if (m_fd < 0) {
 		std::cerr << "Cannot listen closed serial port!" << std::endl;
+		m_thread = nullptr;
 		return;
 	}
 

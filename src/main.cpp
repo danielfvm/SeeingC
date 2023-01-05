@@ -1,4 +1,5 @@
 #include "ASICamera2.h"
+#include "UpdateManager.hpp"
 #include "VirtualCamera.hpp"
 #include "WebServer.hpp"
 #include "Settings.hpp"
@@ -33,6 +34,10 @@
 
 #include "serial.h"
 
+#define UPDATE_DEVICE_FOLDER "/media/usb0/" // using "usbmount" package
+#define UPDATE_INTERVAL 5
+#define VERSION 2
+
 #define MAX_MEASUREMENTS 1000
 #define PORT 8082
 
@@ -43,6 +48,7 @@
 static std::vector<StarInfo> stars;
 static bool global_exit = false;
 
+static UpdateManager* updater = nullptr;
 static WebServer* server = nullptr;
 static Camera* camera = nullptr;
 static SerialManager* serial = nullptr;
@@ -55,7 +61,6 @@ void signalHandler(int signum) {
 		server->stop();
 	if (serial != nullptr)
 		serial->stop();
-	delete server;
 
 	exit(0);
 }
@@ -292,15 +297,17 @@ int main(int argc, char** argv) {
 		{"longitude", 	new OptionNumber("Longitude", 0, -180, 180)},
 	});
 
+	// Changes working directory if WD (Working Directory) environment was set
+	chdir(getenv("WD"));
+
 	server = new WebServer(settings, PORT);
 	server->run();
 
 	serial = new SerialManager(DEVICE_NAME);
 	serial->listen();
 
-	/// Add signal handler, does the exit on ctrl+c thingy ///
-	std::signal(SIGINT, signalHandler);
-
+	updater = new UpdateManager(UPDATE_DEVICE_FOLDER, VERSION, UPDATE_INTERVAL);
+	updater->listen();
 
 	/// Open asi camera, or if a path was provided the virtual camera ///
 	if (argc >= 2) {
@@ -327,6 +334,11 @@ int main(int argc, char** argv) {
 	/// Temporary variables ///
 	std::stringstream status;
 	Image img;
+
+
+	/// Add signal handler, does the exit on ctrl+c thingy ///
+	std::signal(SIGTERM, signalHandler);
+	std::signal(SIGINT, signalHandler);
 
 
 	/// Start main loop ///
@@ -362,6 +374,7 @@ int main(int argc, char** argv) {
 		printf("Thre: %d\n", threshold);
 		status << "Threshold: " << threshold << std::endl;
 
+		printf("Search stars\n");
 		int count = findStars(img, stars, threshold, star_size_min);
 		printf("Stars found: %d\n", count);
 		status << "Star count: " << count << std::endl;
@@ -421,8 +434,8 @@ int main(int argc, char** argv) {
 
 			// If it fails to calculate centroid of star, we will skip it too
 			if (calculate_centroid(img, stars[i].x()-area, stars[i].y()-area, area, _x, _y) == 0.0) {
-				status << "Skipping star "	<< i << std::endl;	
-				std::cout << "Skipping star "	<< i << std::endl;	
+				status << "Skipping star "	<< i << std::endl;
+				std::cout << "Skipping star "	<< i << std::endl;
 				continue;
 			}
 
