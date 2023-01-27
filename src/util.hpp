@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <limits>
@@ -17,7 +18,7 @@
 
 #include <stdarg.h>
 #include <memory>
-
+#include <ctime>
 
 #include <tiffio.h>
 
@@ -55,8 +56,14 @@ struct StarInfo {
   }
 };
 
+#define MAX_AREA 20000
+
 inline void scanNeighbours(const Image& img, bool *blacklist, int x, int y, int threshold, StarInfo &info) {
   if (x < 0 || y < 0 || x >= img.get_width() || y >= img.get_height()) {
+    return;
+  }
+  
+  if (info.area > MAX_AREA) {
     return;
   }
 
@@ -101,7 +108,7 @@ inline int findStars(const Image& img, std::vector<StarInfo> &stars, int thresho
   for (int x = 0; x < img.get_width(); x += 1) {
     for (int y = 0; y < img.get_height(); y += 1) {
       scanNeighbours(img, blacklist, x, y, threshold, info);
-      if (info.area >= minsize) {
+      if (info.area >= minsize && info.area != MAX_AREA) {
         stars.push_back(StarInfo(info));
       }
       info.reset();
@@ -169,6 +176,11 @@ inline int calculate_threshold(const Image &img) {
   }
 
   int avg = sum / img.get_pixel_count();
+
+  // No peaks found in the image
+  if (max - avg < 10) {
+    return 255;
+  }
 
   return max * 0.3 + avg * 0.7;
 }
@@ -480,7 +492,7 @@ inline T& goToLine(T& file, unsigned int num){
 }
 
 template<typename ... Args>
-std::string fmt( const std::string& format, Args ... args ) {
+inline std::string fmt( const std::string& format, Args ... args ) {
     int size_s = std::snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
     if( size_s <= 0 ){ throw std::runtime_error( "Error during formatting." ); }
     auto size = static_cast<size_t>( size_s );
@@ -488,5 +500,56 @@ std::string fmt( const std::string& format, Args ... args ) {
     std::snprintf( buf.get(), size, format.c_str(), args ... );
     return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
 }
+
+/*
+ * Original code: https://gist.github.com/privong/e830e8a16457f4efe7e6 (18.01.2023)
+ */
+inline double get_siderial_time(double lon) {
+
+    time_t obstime;
+    char obstimestr[40];
+    struct tm obstimestruct;
+    double d, t, GMST_s, LMST_s;
+
+    /*
+	double MM = 11;
+	double DD = 27;
+	double YY = 22;
+	double hh = 16;
+	double mm = 29;
+
+    */
+    //obstime = 1669566540;
+
+	obstime = time(NULL);   // seconds since Unix epoch
+
+    // add JD to get to the UNIX epoch, then subtract to get the days since 2000 Jan 01, 12h UT1 
+    d = (obstime / 86400.0) + 2440587.5 - 2451545.0;
+    t = d / 36525;
+
+    GMST_s = 24110.54841 + 8640184.812866 * t + 0.093104 * pow(t, 2) - 0.0000062 * pow(t, 3);
+    // convert from UT1=0
+    GMST_s += obstime;
+    GMST_s = GMST_s - 86400.0 * floor(GMST_s / 86400.0);
+
+    // adjust to LMST
+    LMST_s = GMST_s + 3600*lon/15.;
+    
+    if (LMST_s <= 0) {  // LMST is between 0 and 24h
+        LMST_s += 86400.0;
+    }
+    
+    printf("lmst: %f\n", LMST_s / 3600.0);
+    return LMST_s / 3600.0;
+ }
+
+/*
+ * 2h55m = 17/6
+ */
+inline double get_deg_polaris(double longitude) {
+    double lmst = get_siderial_time(longitude);
+    return 30.0 * (12.0 - ((lmst-17.0/6.0)/2.0) + 6.0);
+}
+
 
 #endif

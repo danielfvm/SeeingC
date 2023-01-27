@@ -10,12 +10,17 @@
 	<body>
 		<div class="option_view">
 			<h2>settings</h2>
-			{{#options}}
-				<div class="option">
-					<p>{{name}}</p>
-					{{{html}}}
+			{{#groups}}
+				<div class="group">
+				<h3>{{group_name}}</h3>
+				{{#group_list}}
+					<div class="option">
+						<h4>{{option_name}}</h4>
+						{{{option_html}}}
+					</div>
+				{{/group_list}}
 				</div>
-			{{/options}}
+			{{/groups}}
 		</div>
 
 		<div id="viewport">

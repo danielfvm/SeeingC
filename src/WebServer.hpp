@@ -20,6 +20,8 @@ public:
 
 	void applyData(Image& img, const std::string& status, const std::vector<StarInfo>& stars);
 
+	void setPlateSolveData(double x, double y);
+
 	Profil m_profile;
 
 private:
@@ -37,7 +39,11 @@ private:
 
 	// Information for the website, set via applyData methode
 	std::string m_image_buffer, m_status_text;
+	std::string m_indicators;
 	std::vector<StarInfo> m_stars;
+
+    double m_pltslv_x = 0;
+    double m_pltslv_y = 0;
 };
 
 #endif // WEBSERVER_HPP

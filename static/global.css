@@ -1,9 +1,17 @@
 /* Global variables */
 :root {
 	--radius: 8px;
-	--border: solid 1px #e5e5e5;
+	--border: none;
+	--color: white;
+	--color-header: #3b94e6;
+	--color-main-bg: #282c35;
+	--color-option-bg: #343842;
 }
 
+@font-face {
+    font-family: Dosis;
+    src: url(Dosis.ttf);
+}
 
 
 /* Background */
@@ -11,8 +19,8 @@ html body {
 	margin: 0px;
 	padding: 0px;
 	overflow: hidden;
-	font-family: "Sans-serif", Times, serif;
-	background: #efefef;
+	font-family: Dosis;
+	background: #1d2027;
 	color: #404040;
 }
 
@@ -23,35 +31,53 @@ html body {
 	top: 0;
 	bottom: 0;
 	left: 0;
-	background: #fafafa;
-	width: 300px;
+	background: #1d2027;
+	width: 275px;
 	position: absolute;
-	border: var(--border);
-	border-radius: 0 var(--radius) var(--radius) 0;
 	overflow-x: hidden;
-	overflow-y: auto;
+	overflow-y: scroll;
 	z-index: 2;
 }
 
 h2 {
 	text-align: center;
 	text-transform: uppercase;
+	color: var(--color);
+	font-size: 35px;
+	margin: 5px;
+}
+
+
+.group {
+	padding: 5px;
+	margin: 5px 0 5px 0;
+	margin-bottom: 15px;
+}
+
+.group > h3 {
+	color: var(--color-header);
+	font-weight: 600;
+	margin: 5px;
 }
 
 .option {
-	background: #ffffff;
-	padding: 20px;
+	background: var(--color-main-bg);
+	padding: 5px;
 	margin: 5px;
-	border: var(--border);
+	border: none;
 	border-radius: var(--radius);
 }
 
-.option > p {
-	font-weight: bold;
+.option > h4 {
+	color: var(--color);
+	font-weight: 400;
+	margin: 5px;
 }
 
 select {
+	color: var(--color);
 	padding: 10px;
+	background: var(--color-option-bg);
 	border: var(--border);
 	border-radius: var(--radius);
 	margin-right: -4.5px;
@@ -59,19 +85,35 @@ select {
 }
 
 input {
+	color: var(--color);
 	padding: 10px;
+	background: var(--color-option-bg);
 	border: var(--border);
 	border-radius: var(--radius);
 }
 
 button {
+	color: var(--color-header);
+	font-weight: bold;
 	padding: 10px;
+	background: var(--color-option-bg);
 	border: var(--border);
 	border-radius: var(--radius);
+	margin-left: 5px;
 }
 
 button:disabled {
-	color: #b0b0b0;
+	color: gray;
+}
+
+
+button:enabled:hover {
+	background: #3e434c;
+}
+
+
+button:enabled:active {
+	background: #464a54;
 }
 
 /* Slider option */
@@ -114,7 +156,7 @@ button:disabled {
 }
 
 input:checked + .slider {
-	background-color: #2196F3;
+	background-color: var(--color-header);
 }
 
 input:focus + .slider {
@@ -166,23 +208,20 @@ input:checked + .slider:before {
 
 #zoom > p {
 	margin: 0px;
+	color: var(--color);
 }
-
 
 /* Status info */
 #status {
 	margin: 10px;
 	text-align: right;
-	color: lightgreen;
+	color: var(--color);
 	position: absolute;
 	z-index: 2;
 	top: 0;
 	right: 0;
-	background: rgba(0, 0, 0, 0.6);
-	border-radius: var(--radius);
 	padding: 5px;
-	-webkit-backdrop-filter: blur(5px);
-	backdrop-filter: blur(5px);
+	font-size: 18px;
 }
 
 #canvas {
@@ -213,3 +252,6 @@ input:checked + .slider:before {
 	border: var(--border);
 }
 
+#image {
+	border-radius: var(--radius);
+}

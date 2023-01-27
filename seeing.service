@@ -4,8 +4,8 @@ Description=Seeing service
 [Service]
 Type=simple
 ExecStart=/opt/seeing/start.sh
-Restart=on-failure
-RestartSec=10
+Restart=always
+RestartSec=5
 KillMode=process
 
 [Install]

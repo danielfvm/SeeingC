@@ -4,18 +4,17 @@ if [ "$EUID" -ne 0 ]
   exit
 fi
 
-# install and build seeing
+# install
 cp -r . /opt/seeing
-cd /opt/seeing
-mkdir -p build
-cd build
-cmake ..
-make
-cd ..
+
+# build
+/opt/seeing/build.sh
 
 # enable autostart
 cp seeing.service /etc/systemd/system/seeing.service
 chmod 640 /etc/systemd/system/seeing.service
 systemctl daemon-reload
 systemctl enable seeing.service
-systemctl restart seeing.service
+systemctl stop seeing.service
+sleep 1
+systemctl start seeing.service

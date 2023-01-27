@@ -11,14 +11,13 @@ function apply(id, value) {
 	}
 }
 
-function applyAxes(data) {
-	let x = 0;
-	return data.map(y => {
-		return {
-			"x": x++,
-			"y": y
-		};
-	});
+function request(url, params = {}, method = 'GET') {
+    return $.ajax({
+      url: url,
+      type: method,
+      dataType: 'text',
+      data: params
+    });
 }
 
 Math.toRadians = (deg) => Math.PI / 180.0 * deg;
@@ -28,7 +27,6 @@ window.onload = () => {
 	/// Integer settings ///
 	$("input[type='number']").each(function() {
 		$(`#btn_${this.id}`)[0].onclick = () => {
-			console.log(this);
 			apply(this.id, this.value);
 		};
 
@@ -195,68 +193,94 @@ window.onload = () => {
 		},
 	});
 
-	const rektaszension=45.699482; 
-	const deklination=89.261964; 
-	const siderial=21.992521;
-
+	/* Update image, status and indicators */
 	$('img[data-lazysrc]').each(function () {
 		$(this).attr('src', $(this).attr('data-lazysrc') + '?a=' + Math.random());
-		$(this).on('load', () => {
+		$(this).on('load', async () => {
 			width = this.width;
 			height = this.height;
 			$('#imginfo')[0].innerText = width + 'x' + height;
 
-			let canvas = $('#canvas')[0];
+			const canvas = $('#canvas')[0];
+			const ctx = canvas.getContext("2d");
 			if (canvas.width != width) canvas.width = width;
 			if (canvas.height != height) canvas.height = height;
 
-			$.get('/status', (data) => {
-				$('#status')[0].innerText = data;
+			// Set status text
+			$('#status')[0].innerText = await request("/status");
 
-				$.get('/stars', (data) => {
-					let stars = data.split('\n').map((x) => x.split(' '));
-					var ctx = canvas.getContext("2d");
+			// Get all points for drawing a the star profil graph
+			const profil = (await request("/profil")).split('\n').map((x) => parseInt(x));
+			$("#chartwrapper")[0].style.display = profil.length > 1 ? "block" : "none";
+			chart.data.labels = [...Array(parseInt(profil.length / 2) + 1).keys()];
+			chart.data.datasets[0].data = profil.splice(0, profil.length / 2);
+			chart.data.datasets[1].data = profil;
+			chart.update();
 
-					$.get('/profil', (data) => {
-						let values = data.split('\n').map((x) => parseInt(x));
-						chart.data.labels = [...Array(parseInt(values.length / 2) + 1).keys()];
-						chart.data.datasets[0].data = values.splice(0, values.length / 2);
-						chart.data.datasets[1].data = values;
-						chart.update();
+			// Get all star coordinates
+			const stars = (await request("/stars")).split('\n').map((x) => x.split(' '));
 
-						$("#chartwrapper")[0].style.display = values.length > 1 ? "block" : "none";
+			// Get indicators for finding polaris
+			const indicators = (await request("/indicators")).split('\n');
+			const [ radius_polaris, deg_polaris, pltslv_x, pltslv_y ] = indicators;
 
-						// Draw stars
-						if (values.length <= 1) {
-							ctx.clearRect(0, 0, width, height);
-							ctx.lineWidth = "1";
-							ctx.strokeStyle = "red";
+			// Clear screen
+			ctx.clearRect(0, 0, width, height);
 
-							for (let star of stars) {
-								let s = parseInt(star[2]) + 3;
-								let x = parseInt(star[0] - s / 2) + 0.5;
-								let y = parseInt(star[1] - s / 2) + 0.5;
-								ctx.strokeRect(x, y, s, s);
-							}
-						}
 
-						// Draw centerpoint
-						ctx.strokeStyle = 'blue';
-						ctx.lineWidth = 3;
-						ctx.beginPath();
-						ctx.moveTo(width/2, height/2);
-						ctx.lineTo(width/2+Math.cos(Math.toRadians(rektaszension))*300, height/2+Math.sin(Math.toRadians(rektaszension))*300);
-						ctx.stroke();
+			//  Draw boxes around stars on canvas
+			for (let star of stars) {
+				let s = parseInt(star[2]) + 3;
+				let x = parseInt(star[0]) + 0.5;
+				let y = parseInt(star[1]) + 0.5;
+				ctx.beginPath();
+				ctx.lineWidth = "1";
+				ctx.strokeStyle = "red";
+				ctx.arc(x, y, s, 0, 2 * Math.PI, false);
+				ctx.lineWidth = 3;
+				ctx.stroke();
+			}
 
-						// Update image
-						setTimeout(() => {
-							$(this).attr('src', $(this).attr('data-lazysrc') + '?a=' + Math.random());
-						}, 100);
+			// Line to polaris
+			let polarisX = width/2+radius_polaris*Math.sin((Math.PI/180)*deg_polaris);
+			let polarisY = height/2-radius_polaris*Math.cos((Math.PI/180)*deg_polaris);
+			ctx.strokeStyle = 'blue';
+			ctx.lineWidth = 3;
+			ctx.beginPath();
+			ctx.moveTo(width/2, height/2);
+			ctx.lineTo(polarisX, polarisY);
+			ctx.stroke();
 
-					});
-				});
-			});
+			for (let i = 0; i < 24; ++ i) {
+				let polarisX = width/2+radius_polaris*Math.sin((Math.PI/180)*(i*15));
+				let polarisY = height/2-radius_polaris*Math.cos((Math.PI/180)*(i*15));
+				ctx.strokeStyle = 'gray';
+				ctx.lineWidth = 1;
+				ctx.beginPath();
+				ctx.moveTo(width/2, height/2);
+				ctx.lineTo(polarisX, polarisY);
+				ctx.stroke();
+			}
+
+			ctx.strokeStyle = 'blue';
+			ctx.lineWidth = 3;
+			ctx.beginPath();
+			ctx.arc(width/2, height/2, radius_polaris, 0, 2 * Math.PI, false);
+			ctx.lineWidth = 5;
+			ctx.stroke();
+
+			// Draw centerpoint
+			ctx.strokeStyle = 'green';
+			ctx.lineWidth = 3;
+			ctx.beginPath();
+			ctx.moveTo(polarisX, polarisY);
+			ctx.lineTo(polarisX+pltslv_x, polarisY+pltslv_y);
+			ctx.stroke();
+
+			// Update image
+			setTimeout(() => {
+				$(this).attr('src', $(this).attr('data-lazysrc') + '?a=' + Math.random());
+			}, 100);
 		});
 	});
-
 };

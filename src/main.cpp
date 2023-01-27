@@ -1,5 +1,4 @@
 #include "ASICamera2.h"
-#include "UpdateManager.hpp"
 #include "VirtualCamera.hpp"
 #include "WebServer.hpp"
 #include "Settings.hpp"
@@ -34,24 +33,46 @@
 
 #include "serial.h"
 
-#define UPDATE_DEVICE_FOLDER "/media/usb0/" // using "usbmount" package
-#define UPDATE_INTERVAL 5
-#define VERSION 2
-
-#define MAX_MEASUREMENTS 1000
 #define PORT 8082
 
 #define DEVICE_NAME "/dev/ttyUSB0"
 #define ASTAP_PROGRAM "/home/daniel/Documents/Diploma/astap_command-line_version_Linux_amd64/astap_cli"
 #define ASTAP_DATABASE "/home/daniel/Documents/Diploma/astap_command-line_version_Linux_amd64/h18"
 
+// Helper definitions that convert from radians to degrees and vice versa
+#define rad(deg) ((deg)*(M_PI/180.0))
+#define deg(rad) ((rad)*(180.0/M_PI))
+
 static std::vector<StarInfo> stars;
 static bool global_exit = false;
 
-static UpdateManager* updater = nullptr;
 static WebServer* server = nullptr;
 static Camera* camera = nullptr;
 static SerialManager* serial = nullptr;
+
+// Prototypes
+std::string btn_platesolving();
+std::string btn_shutdown();
+
+/* All settings accessible from the webinterface menu are defined here */
+Settings settings({
+	{"capture_mode", new OptionMode("Discover Stars", "Capture mode", 0, {"Search stars", "Calculate seeing"})},
+	{"star_size", new OptionNumber("Discover Stars", "Minimum star area (px)", 100, 1, 1000, 1)}, 	// Minimum size of a star to count
+	{"exposure", new OptionNumber("Discover Stars", "Exposure (ms)", 10, 0, 1000, 1)},
+	{"gain", new OptionNumber("Discover Stars", "Gain", 300, 0, 480, 1)},
+	{"v_threshold", new OptionBool("Discover Stars", "Visualize Threshold", false)},
+	{"measure_mode", new OptionMode("Seeing", "Seeing-calculation type", 0, {"Average", "Correlation"})},
+	{"roi", new OptionNumber("Seeing", "Region of interest (px)", 128, 32, 512, 32)},
+	{"pause", new OptionNumber("Seeing", "Pause (s)", 5, 0, 60 * 60, 1)},
+	{"measurements", new OptionNumber("Seeing", "Measurments per Seeing", 10, 1, 1000, 1)}, 		// Amount of measurements per seeing value
+	{"btn_solving", new OptionButton("Calibrate Telescope", "Plate solving", btn_platesolving)},
+	{"longitude", new OptionNumber("Calibrate Telescope", "Longitude", 16.57736, -180, 180)},
+	{"latitude", new OptionNumber("Calibrate Telescope", "Latitude", 48.31286, -90, 90)},
+	{"deg_per_px", new OptionNumber("Calibrate Telescope", "Degree per Pixel", 6.75e-4, 0, 1)},
+	{"radius_polaris", new OptionNumber("Calibrate Telescope", "Radius of Polaris orbit (Degree)", 0.6369444, 0, 1)},
+	{"btn_shutdown", new OptionButton("Other", "Shutdown Computer", btn_shutdown)},
+});
+
 
 void signalHandler(int signum) {
 	/// Free memory & exit ///
@@ -120,50 +141,6 @@ double measure_star(const StarInfo& star, int area, int measurements, std::strin
 	return seeing;
 }
 
-// https://www.latlong.net/
-double longitude;
-
-double get_siderial_time(double Long) {
-    std::time_t t = std::time(0);   // get time now
-    std::tm* now = std::localtime(&t);
-
-	/* 2022-11-27T16:29:17
-	double MM = now->tm_mon+1;
-	double DD = now->tm_mday;
-	double YY = now->tm_year+1900;
-	double hh = now->tm_hour;
-	double mm = now->tm_min;
-	*/
-	double MM = 11;
-	double DD = 27;
-	double YY = 2022;
-	double hh = 16;
-	double mm = 29;
-
-	// convert mm to fractional time:
-	mm = mm/60.0;
-
-	// reformat UTC time as fractional hours:
-	double UT = hh+mm;
-
-	// calculate the Julian date:
-	double JD = (367*YY) - int((7*(YY+int((MM+9)/12.0)))/4.0) + int((275*MM)/9.0) + DD + 1721013.5 + (UT/24.0);
-
-	// calculate the Greenwhich mean sidereal time:
-	double GMST = 18.697374558 + 24.06570982441908 * (JD - 2451545);
-	GMST = GMST - int(GMST/24.0)*24;    //use modulo operator to convert to 24 hours
-
-	// Convert to the local sidereal time by adding the longitude (in hours) from the GMST.
-	// (Hours = Degrees/15, Degrees = Hours*15)
-	Long = Long/15.0;      		// Convert longitude to hours
-	double LST = GMST+Long;     // Fraction LST. If negative we want to add 24...
-	if (LST < 0) {
-		LST = LST + 24;
-	}
-
-	return LST;
-}
-
 bool astap_solve(double& ra, double& dc) {
 	int fullwidth, fullheight;
 	std::string buffer;
@@ -180,8 +157,6 @@ bool astap_solve(double& ra, double& dc) {
 
 	img.save_fits("temp.fits");
 	std::cout << "saved fits" << std::endl;
-
-// ./astap_cli -d h18 -f 20221127_1629_1s_GMax_RGB24.fits -ra 3h -spd 180 -s 50 -m 4 -analyse snr_min
 
 	if (fork() == 0) {
 		// runs command: ./astap_cli -d h18 -f file.fits -ra 3h -spd 180 -s 50 -m 4
@@ -213,11 +188,34 @@ bool astap_solve(double& ra, double& dc) {
 		file >> dc;
 
 		file.close();
-		
-		std::cout << "values: " << ra << " " << dc << std::endl;
+
+		// Convert to different format
+		ra = (24.0 / 360.0) * ra;
 	}
 
 	return true;
+}
+
+
+/**
+ * This function calculates the azimuth and altitude of a celestial body given its right ascension, declination,
+ * and the latitude and local mean sidereal time at the observer's location.
+ *
+ * Parameters:
+ *  lmst: Local mean sidereal time at the observer's location in degrees.
+ *  rightAscension: Right ascension of the celestial body in degrees.
+ *  declination: Declination of the celestial body in degrees.
+ *  latitude: Latitude of the observer's location in degrees.
+ *  azimuth: Output parameter for the calculated azimuth in degrees.
+ *  altitude: Output parameter for the calculated altitude in degrees.
+ */
+void get_azimut_and_height(double lmst, double rightAscension, double declination, double latitude, double& azimuth, double& altitude) {
+  double phi = rad(latitude);
+  double tau = rad(15 * (lmst - rightAscension));
+  double delta = rad(declination);
+
+  azimuth = deg(atan(sin(tau)/(sin(phi)*cos(tau)-cos(phi)*tan(delta))));
+  altitude = deg(asin(sin(phi)*sin(delta) + cos(phi)*cos(delta)*cos(tau)));
 }
 
 /* 
@@ -266,37 +264,42 @@ int auto_gain(StarInfo& star, int area, int threshold, int star_size_min, int ga
 
 std::string btn_shutdown() {
 	execlp("/bin/shutdown", "shutdown", "now", nullptr);
-
 	return "exiting";
 }
 
 
 std::string btn_platesolving() {
-	double ra, dc;
+	double rightAscension, declination;
+	if (!astap_solve(rightAscension, declination)) {
+		return "Failed to solve image";
+	}
 
-	astap_solve(ra, dc);
+	double longitude = settings.get<OptionNumber>("longitude")->get();
+	double latitude = settings.get<OptionNumber>("latitude")->get();
+	double lmst = get_siderial_time(longitude);
 
-	double siderial_time = get_siderial_time(longitude);
-	double h_a = siderial_time - ra;
+	// Current image center
+	double azimuth, altitude;
+	get_azimut_and_height(lmst, rightAscension, declination, latitude, azimuth, altitude);
 
-	return "Rektaszension=" + std::to_string(ra) + " Deklination=" + std::to_string(dc) + " Ha=" + std::to_string(h_a) + " Sid=" + std::to_string(siderial_time);
+	// Difference in pixel
+	double degPerPx = settings.get<OptionNumber>("deg_per_px")->get();
+	double diffX = (azimuth-0)/degPerPx;
+	double diffY = (altitude-latitude)/degPerPx;
+
+	server->setPlateSolveData(diffX, diffY);
+
+	std::stringstream ss;
+
+	ss << "rekta: " << rightAscension << std::endl;
+	ss << "dekli: " << declination << std::endl;
+	ss << "delta azimuth: " << azimuth << std::endl;
+	ss << "delta altitude: " << (altitude-latitude) << std::endl;
+
+	return ss.str();
 }
 
 int main(int argc, char** argv) {
-	Settings settings({
-		{"btn_solving", new OptionButton("Plate solving", btn_platesolving)},
-		{"exposure", 	new OptionNumber("Exposure (ms)", 10, 0, 1000)},
-		{"gain", 		new OptionNumber("Gain", 300, 0, 480, 1)},
-		{"capture_mode",new OptionMode("Capture mode", 0, {"Search stars", "Calculate seeing"})},
-		{"measure_mode",new OptionMode("Seeing-calculation type", 0, {"Average", "Correlation"})},
-		{"roi", 		new OptionNumber("Region of interest (px)", 128, 32, 512, 32)}, // Region Of Interest, multiple of 2
-		{"measurements",new OptionNumber("Measurments", 10, 1, MAX_MEASUREMENTS)}, 		// Amount of measurements per seeing value
-		{"star_size", 	new OptionNumber("Minimum star area (px)", 1, 1, 1000, 1)}, 	// Minimum size of a star to count
-		{"v_threshold", new OptionBool("Visualize Threshold", false)},
-		{"btn_shutdown",new OptionButton("Shutdown Computer", btn_shutdown)},
-		{"longitude", 	new OptionNumber("Longitude", 0, -180, 180)},
-	});
-
 	// Changes working directory if WD (Working Directory) environment was set
 	chdir(getenv("WD"));
 
@@ -305,9 +308,6 @@ int main(int argc, char** argv) {
 
 	serial = new SerialManager(DEVICE_NAME);
 	serial->listen();
-
-	updater = new UpdateManager(UPDATE_DEVICE_FOLDER, VERSION, UPDATE_INTERVAL);
-	updater->listen();
 
 	/// Open asi camera, or if a path was provided the virtual camera ///
 	if (argc >= 2) {
@@ -343,6 +343,8 @@ int main(int argc, char** argv) {
 
 	/// Start main loop ///
 	while (true) {
+		sleep(settings.get<OptionNumber>("pause")->get());
+
 		stars.clear();
 		status.str("");
 		status.clear();
@@ -356,7 +358,6 @@ int main(int argc, char** argv) {
 		int gain = settings.get<OptionNumber>("gain")->get();
 		int area = settings.get<OptionNumber>("roi")->get();
 		int measure_mode = settings.get<OptionMode>("measure_mode")->get();
-		longitude = settings.get<OptionNumber>("longitude")->get();
 
 		camera->set_roi(0, 0, width, height);
 		camera->set_exposure(exposure);
@@ -368,7 +369,7 @@ int main(int argc, char** argv) {
 		camera->get_data(img);
 		camera->stop_capture();
 
-		status << "Main frame: " << camera->get_frame() << std::endl;
+		status << "Master frame: " << camera->get_frame() << std::endl;
 
 		int threshold = calculate_threshold(img);
 		printf("Thre: %d\n", threshold);

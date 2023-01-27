@@ -15,7 +15,12 @@
 #define cfg_filename "settings.txt" // config file name
 
 class Option {
+protected:
+	std::string m_group;
+
 public:
+	Option(const std::string& group) : m_group(group) {}
+
 	virtual std::string get_html(const char* id) = 0;
 
 	virtual char* load(const std::string& data) = 0;
@@ -23,12 +28,16 @@ public:
 	virtual std::string store() = 0;
 
 	virtual std::string get_name() = 0;
+
+	std::string get_group() const {
+		return m_group;
+	}
 };
 
 class OptionNumber : public Option {
 public:
-	OptionNumber(const std::string& name, double value, double min, double max, int step = 0) 
-		: m_name(name), m_value(value), m_min(min), m_max(max), m_step(step) { }
+	OptionNumber(const std::string& group, const std::string& name, double value, double min, double max, int step = 0) 
+		: Option(group), m_name(name), m_value(value), m_min(min), m_max(max), m_step(step) { }
 
 	double get() {
 		return m_value;
@@ -55,7 +64,7 @@ public:
 
 	std::string get_html(const char* id) {
 		std::string input;
-		if (m_step == 1) {
+		if (m_step != 0) {
 			input = fmt("<input id=\"%s\" type=\"number\" value=\"%d\" min=\"%d\" max=\"%d\" step=\"%d\" />", id, (int)m_value, (int)m_min, (int)m_max, m_step);
 		} else {
 			input = fmt("<input id=\"%s\" type=\"number\" value=\"%0.5f\" min=\"%f\" max=\"%f\" />", id, m_value, m_min, m_max);
@@ -79,8 +88,8 @@ private:
 
 class OptionMode : public Option {
 public:
-	OptionMode(const std::string& name, int selected, std::vector<std::string> modes) 
-		: m_name(name), m_selected(selected), m_modes(modes) {}
+	OptionMode(const std::string& group, const std::string& name, int selected, std::vector<std::string> modes) 
+		: Option(group), m_name(name), m_selected(selected), m_modes(modes) {}
 
 	std::string get_html(const char* id) {
 		std::string options;
@@ -123,8 +132,8 @@ private:
 
 class OptionBool : public Option {
 public:
-	OptionBool(const std::string& name, bool value) 
-		: m_name(name), m_value(value) {}
+	OptionBool(const std::string& group, const std::string& name, bool value) 
+		: Option(group), m_name(name), m_value(value) {}
 
 	std::string get_html(const char* id) {
 		auto input = fmt("<label class=\"switch\"><input id=\"%s\" type=\"checkbox\" %s><span class=\"slider round\"></span></label>", id, m_value ? "checked" : "");
@@ -158,8 +167,8 @@ private:
 
 class OptionButton : public Option {
 public:
-	OptionButton(const std::string& name, std::function<std::string()> callback) 
-		: m_name(name), m_callback(callback) {}
+	OptionButton(const std::string& group, const std::string& name, std::function<std::string()> callback) 
+		: Option(group), m_name(name), m_callback(callback) {}
 
 	std::string get_html(const char* id) {
 		return fmt("<button class=\"actionbtn\" id=\"%s\">Run</button>", id);
@@ -187,7 +196,7 @@ private:
 
 class Settings {
 public:
-	typedef std::unordered_map<std::string, Option*> CFG;
+	typedef std::map<std::string, Option*> CFG;
 
 private:
 	CFG m_values;
@@ -259,17 +268,28 @@ public:
 	}
 
 	std::vector<crow::json::wvalue> json() {
-		std::vector<crow::json::wvalue> list;
+		std::string group_name;
+		crow::json::wvalue group;
+		group["name"] = "";
 
-		for (CFG::iterator it = m_values.begin(); it != m_values.end(); ++it) {
-			crow::json::wvalue data;
-			data["name"] = it->second->get_name();
-			data["html"] = it->second->get_html(it->first.c_str());
+		std::map<std::string, std::vector<crow::json::wvalue>> groups;
 
-			list.push_back(data);
+		for (auto it = m_values.begin(); it != m_values.end(); ++it) {
+			groups[it->second->get_group()].push_back({
+				{"option_name", it->second->get_name()},
+				{"option_html", it->second->get_html(it->first.c_str())},
+			});
 		}
 
-		return list;
+		std::vector<crow::json::wvalue> data;
+		for (auto it = groups.begin(); it != groups.end(); ++it) {
+			data.push_back({
+				{"group_name", it->first},
+				{"group_list", it->second},
+			});
+		}
+
+		return data;
 	}
 };
 
