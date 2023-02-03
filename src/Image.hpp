@@ -4,6 +4,7 @@
 #include <CCfits/CCfits.h>
 
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 #include <string>
@@ -44,6 +45,18 @@ public:
     if (m_buffer) {
       free(m_buffer);
     }
+  }
+
+  void copy_from(const Image &img) {
+    if (m_buffer) {
+      free(m_buffer);
+    }
+
+    m_width = img.m_width;
+    m_height = img.m_height;
+    m_buffer = (uint8_t *)malloc(get_pixel_count());
+
+    std::memcpy(m_buffer, img.m_buffer, get_pixel_count());
   }
 
   ErrorCode open_tiff(const std::string &filepath);

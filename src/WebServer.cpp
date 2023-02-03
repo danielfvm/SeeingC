@@ -11,7 +11,6 @@
 
 WebServer::WebServer(Settings &settings, int port)
     : m_settings(settings), m_port(port), m_thread(nullptr) {
-
   crow::logger::setLogLevel(crow::LogLevel::ERROR);
   CROW_ROUTE(m_app, "/")
   ([&](const crow::request &req) {
@@ -75,8 +74,8 @@ WebServer::WebServer(Settings &settings, int port)
 
   CROW_ROUTE(m_app, "/indicators")
   ([&](const crow::request &req) {
-    double deg_per_px = settings.get<OptionNumber>("deg_per_px")->get();
-    double radius_polaris = settings.get<OptionNumber>("radius_polaris")->get() / deg_per_px;
+    double deg_per_px = settings.get<OptionNumber>("deg_per_px")->get() / 3600.0;
+    double radius_polaris = (settings.get<OptionNumber>("radius_polaris")->get() / 3600.0) / deg_per_px;
     double deg_polaris = get_deg_polaris(settings.get<OptionNumber>("longitude")->get());
 
     std::stringstream ss;
@@ -95,8 +94,7 @@ WebServer::WebServer(Settings &settings, int port)
     std::stringstream data;
 
     for (const StarInfo &info : m_stars) {
-      data << info.x() << ' ' << info.y() << ' ' << info.diameter()
-           << std::endl;
+      data << info.x() << ' ' << info.y() << ' ' << info.diameter() << std::endl;
     }
 
     auto response = crow::response(data.str());
@@ -127,15 +125,15 @@ WebServer::WebServer(Settings &settings, int port)
     response.set_header("Content-Type", "text/plain");
     return response;
   });
+
+  std::cout << "Running Webserver: http://localhost:" << port << std::endl;
 }
 
 void WebServer::exec(WebServer *server) {
   server->m_app.port(server->m_port).multithreaded().run();
 }
 
-void WebServer::run() { 
-  m_thread = new std::thread(WebServer::exec, this); 
-}
+void WebServer::run() { m_thread = new std::thread(WebServer::exec, this); }
 
 void WebServer::stop() {
   if (m_thread != nullptr) {
@@ -144,11 +142,17 @@ void WebServer::stop() {
   }
 }
 
-void WebServer::applyData(Image &img, const std::string &status,
-                          const std::vector<StarInfo> &stars) {
+void WebServer::applyData(Image &img, const std::string &status, const std::vector<StarInfo> &stars, bool calculateProfile) {
   m_image_buffer = img.get_encoded_str();
   m_status_text = status;
   m_stars = stars;
+
+  if (calculateProfile) {
+    m_profile = calc_profile(img);
+  } else {
+    m_profile.first.clear();
+    m_profile.second.clear();
+  }
 }
 
 void WebServer::setPlateSolveData(double x, double y) {

@@ -43,9 +43,6 @@
 #define rad(deg) ((deg)*(M_PI/180.0))
 #define deg(rad) ((rad)*(180.0/M_PI))
 
-static std::vector<StarInfo> stars;
-static bool global_exit = false;
-
 static WebServer* server = nullptr;
 static Camera* camera = nullptr;
 static SerialManager* serial = nullptr;
@@ -54,22 +51,33 @@ static SerialManager* serial = nullptr;
 std::string btn_platesolving();
 std::string btn_shutdown();
 
+typedef enum {
+	M_AVERAGE,
+	M_CORRELATION,
+} MeasureMode;
+
+typedef enum {
+	C_SEARCH,
+	C_CALCULATE,
+} CaptureMode;
+
 /* All settings accessible from the webinterface menu are defined here */
 Settings settings({
-	{"capture_mode", new OptionMode("Discover Stars", "Capture mode", 0, {"Search stars", "Calculate seeing"})},
+	{"capture_mode", new OptionMode("Discover Stars", "Capture mode", C_SEARCH, {"Search stars", "Calculate seeing"})},
 	{"star_size", new OptionNumber("Discover Stars", "Minimum star area (px)", 100, 1, 1000, 1)}, 	// Minimum size of a star to count
 	{"exposure", new OptionNumber("Discover Stars", "Exposure (ms)", 10, 0, 1000, 1)},
 	{"gain", new OptionNumber("Discover Stars", "Gain", 300, 0, 480, 1)},
+	{"min_threshold", new OptionNumber("Discover Stars", "Minimum Threshold", 100, 1, 255, 1)},
 	{"v_threshold", new OptionBool("Discover Stars", "Visualize Threshold", false)},
-	{"measure_mode", new OptionMode("Seeing", "Seeing-calculation type", 0, {"Average", "Correlation"})},
+	{"measure_mode", new OptionMode("Seeing", "Seeing-calculation type", M_AVERAGE, {"Average", "Correlation"})},
 	{"roi", new OptionNumber("Seeing", "Region of interest (px)", 128, 32, 512, 32)},
 	{"pause", new OptionNumber("Seeing", "Pause (s)", 5, 0, 60 * 60, 1)},
-	{"measurements", new OptionNumber("Seeing", "Measurments per Seeing", 10, 1, 1000, 1)}, 		// Amount of measurements per seeing value
+	{"measurements", new OptionNumber("Seeing", "Measurments per Seeing", 10, 3, 10000, 1)}, 		// Amount of measurements per seeing value
 	{"btn_solving", new OptionButton("Calibrate Telescope", "Plate solving", btn_platesolving)},
 	{"longitude", new OptionNumber("Calibrate Telescope", "Longitude", 16.57736, -180, 180)},
 	{"latitude", new OptionNumber("Calibrate Telescope", "Latitude", 48.31286, -90, 90)},
-	{"deg_per_px", new OptionNumber("Calibrate Telescope", "Degree per Pixel", 6.75e-4, 0, 1)},
-	{"radius_polaris", new OptionNumber("Calibrate Telescope", "Radius of Polaris orbit (Degree)", 0.6369444, 0, 1)},
+	{"deg_per_px", new OptionNumber("Calibrate Telescope", "Arcsec per Pixel", 2.34, 0, 20)},
+	{"radius_polaris", new OptionNumber("Calibrate Telescope", "Radius of Polaris orbit (Arcsec)", 0.6369444, 0, 10000)},
 	{"btn_shutdown", new OptionButton("Other", "Shutdown Computer", btn_shutdown)},
 });
 
@@ -86,11 +94,10 @@ void signalHandler(int signum) {
 	exit(0);
 }
 
+double measure_star(Image& frame, const StarInfo& star, int area) {
+	const int measurements = settings.get<OptionNumber>("measurements")->get();
+	const int measure_mode = settings.get<OptionMode>("measure_mode")->get();
 
-double avg_seeing = 0;
-std::vector<double> seeings;
-
-double measure_star(const StarInfo& star, int area, int measurements, std::stringstream& status, int measure_mode) {
 	std::vector<Image> frames;
 
 	/// Set region of interest ///
@@ -106,37 +113,24 @@ double measure_star(const StarInfo& star, int area, int measurements, std::strin
 		frames.push_back(frame);
 	}
 	camera->stop_capture();
-
 	std::cout << "Captured frames, dropped: " << camera->get_dropped_frames() << std::endl;
 
-	/// Calculating coords ///
-	double seeing = measure_mode == 0 ? calculate_seeing_average(frames) : calculate_seeing_correlation(frames);
+	/// Calculating seeing from frames ///
+	double seeing;
+	switch (measure_mode) {
+	case M_AVERAGE:
+		seeing = calculate_seeing_average(frames);
+		break;
+	case M_CORRELATION:
+		seeing = calculate_seeing_correlation(frames);
+		break;
+	default:
+		seeing = 0;
+	}
 	printf("Took %d images and calculated: seeing = %0.5f\"\n", measurements, seeing);
 
-	Profil profil = calc_profile(frames[measurements-1]);
-	server->m_profile = profil;
-
-	//if (seeing != 0) {
-		status << "ROI: [ x:" << roi_x << ", y:" << roi_y << ", w:" << area << ", h:" << area << " ]" << std::endl;
-		status << "Seeing: " << seeing << std::endl;
-
-		if (seeing != 0) {
-			seeings.push_back(seeing);
-			if (seeings.size() > 30) {
-				avg_seeing = 0;
-				for (auto x : seeings) {
-					avg_seeing += x;
-				}
-				avg_seeing /= seeings.size();
-				seeings.clear();
-			}
-		}
-		status << "AVG Seeing: " << avg_seeing << std::endl;
-
-		server->applyData(frames[measurements-1], status.str(), stars);
-
-		//server->applyData(buffer_list[measurements-1], area, area, status.str(), stars);
-	//}
+	/// Return latest frame for displaying in webinterface ////
+	frame.copy_from(frames[measurements-1]);
 
 	return seeing;
 }
@@ -283,7 +277,7 @@ std::string btn_platesolving() {
 	get_azimut_and_height(lmst, rightAscension, declination, latitude, azimuth, altitude);
 
 	// Difference in pixel
-	double degPerPx = settings.get<OptionNumber>("deg_per_px")->get();
+	double degPerPx = settings.get<OptionNumber>("deg_per_px")->get() / 3600.0;
 	double diffX = (azimuth-0)/degPerPx;
 	double diffY = (altitude-latitude)/degPerPx;
 
@@ -333,6 +327,7 @@ int main(int argc, char** argv) {
 
 	/// Temporary variables ///
 	std::stringstream status;
+	std::vector<StarInfo> stars;
 	Image img;
 
 
@@ -343,21 +338,18 @@ int main(int argc, char** argv) {
 
 	/// Start main loop ///
 	while (true) {
-		sleep(settings.get<OptionNumber>("pause")->get());
-
 		stars.clear();
 		status.str("");
 		status.clear();
 
 		/// Get settings ///
-		int star_size_min = settings.get<OptionNumber>("star_size")->get();
-		int capture_mode = settings.get<OptionMode>("capture_mode")->get();
-		int measurements = settings.get<OptionNumber>("measurements")->get();
-		int v_threshold = settings.get<OptionBool>("v_threshold")->get();
-		int exposure = settings.get<OptionNumber>("exposure")->get() * 1000; // stored as ms but used as us
-		int gain = settings.get<OptionNumber>("gain")->get();
-		int area = settings.get<OptionNumber>("roi")->get();
-		int measure_mode = settings.get<OptionMode>("measure_mode")->get();
+		const int star_size_min = settings.get<OptionNumber>("star_size")->get();
+		const int capture_mode = settings.get<OptionMode>("capture_mode")->get();
+		const int show_threshold = settings.get<OptionBool>("v_threshold")->get();
+		const int min_threshold = settings.get<OptionNumber>("min_threshold")->get();
+		const int exposure = settings.get<OptionNumber>("exposure")->get() * 1000; // stored as ms but used as us
+		const int gain = settings.get<OptionNumber>("gain")->get();
+		const int area = settings.get<OptionNumber>("roi")->get();
 
 		camera->set_roi(0, 0, width, height);
 		camera->set_exposure(exposure);
@@ -371,50 +363,43 @@ int main(int argc, char** argv) {
 
 		status << "Master frame: " << camera->get_frame() << std::endl;
 
-		int threshold = calculate_threshold(img);
+		const int threshold = std::max(calculate_threshold(img), min_threshold);
 		printf("Thre: %d\n", threshold);
 		status << "Threshold: " << threshold << std::endl;
 
 		printf("Search stars\n");
-		int count = findStars(img, stars, threshold, star_size_min);
+		const int count = findStars(img, stars, threshold, star_size_min);
 		printf("Stars found: %d\n", count);
 		status << "Star count: " << count << std::endl;
 
-		if (v_threshold && capture_mode == 0) {
+		if (show_threshold && capture_mode == C_SEARCH) {
 			visualize_threshold(img, threshold);
 		}
 
 		/// In case no stars were found, retry ///
 		if (count <= 0) {
-			server->m_profile.first.clear();
-			server->m_profile.second.clear();
-
-			server->applyData(img, status.str(), stars);
+			server->applyData(img, status.str(), stars, false);
 			continue;
 		}
 
 		// Sort stars, first element is the biggest star
 		std::sort(stars.begin(), stars.end(), sort_stars);
 
-		printf("Brightest star with area %dpx and estimated diameter %0.2fpx at [ %0.2f, %0.2f ], with a circleness of %0.2f \n", stars[0].area, stars[0].diameter(), stars[0].x(), stars[0].y(), stars[0].circleness());
+		printf("Brightest star with area %dpx and estimated diameter %0.2fpx at [ %0.2f, %0.2f ]\n", stars[0].area, stars[0].diameter(), stars[0].x(), stars[0].y());
 		status << "Brightest star: [ x:" << stars[0].x() << ", y:" << stars[0].y() << ", area:" << stars[0].area << ", d:" << stars[0].diameter() << " ]" << std::endl;
 
 
-		/// No need to continue if in capture_mode 0 ///
-		if (capture_mode == 0) {
-			server->m_profile.first.clear();
-			server->m_profile.second.clear();
-
-			server->applyData(img, status.str(), stars);
+		/// No need to continue if in capture_mode SEARCH as we do not need to calculate seeing ///
+		if (capture_mode == C_SEARCH) {
+			server->applyData(img, status.str(), stars, false);
 			continue;
 		}
 
+		//// Sleep to not constantly make measurements ///
+		sleep(settings.get<OptionNumber>("pause")->get());
 
-		double _x, _y;
-		double seeing;
-
-		// If largest star is cannot be calculated, try reducing gain
-		if (/* auto_gain && */ gain > 0 && calculate_centroid(img, stars[0].x()-area, stars[0].y()-area, area, _x, _y) == 0.0) {
+		// If largest star cannot be calculated, try reducing gain
+		/*if (gain > 0 && calculate_centroid(img, stars[0].x()-area, stars[0].y()-area, area, _x, _y) == 0.0) {
 			int newgain = auto_gain(stars[0], area, threshold, star_size_min, gain);
 
 			if (newgain == 0) { // trying to fix it by changing gain failed, take next smaller star instead
@@ -422,37 +407,44 @@ int main(int argc, char** argv) {
 			} else {
 				std::cout << "Reduced gain: " << gain << std::endl;
 			}
-		}
+		}*/
 
-		for (int i = 0; i < stars.size(); ++ i) {
+		/// Search for a viable star
+		Image latestFrame;
+		double seeing;
+		int i;
+
+		for (i = 0; i < stars.size(); ++ i) {
 
 			// Skip star if to close to edge
 			if (is_star_outside_box(img, stars[i], area)) {
-				status << "Skipping star " << i << " to close on edge" << std::endl;	
 				std::cout << "Skipping star " << i << " to close on edge" << std::endl;	
 				continue;
 			}
 
 			// If it fails to calculate centroid of star, we will skip it too
+			double _x, _y;
 			if (calculate_centroid(img, stars[i].x()-area, stars[i].y()-area, area, _x, _y) == 0.0) {
-				status << "Skipping star "	<< i << std::endl;
-				std::cout << "Skipping star "	<< i << std::endl;
+				std::cout << "Skipping star "	<< i << " failed to calculate centroid" << std::endl;
 				continue;
 			}
 
-			seeing = measure_star(stars[i], area, measurements, status, measure_mode);
+			// Try to calculate seeing value
+			seeing = measure_star(latestFrame, stars[i], area);
 
-			serial->send_seeing(seeing);
-
+			// if we got our value we can exit the loop
 			if (seeing != 0) {
-				status << "Measuring seeing success, avg: " << avg_seeing << std::endl;	
-				std::cout << "Measuring seeing success" << std::endl;	
 				break;
-			} else {
-				status << "Failed to measure star "	<< i << std::endl;	
-				std::cout << "Failed to measure star "	<< i << std::endl;	
 			}
+
+			// if seeing is zero it failed to calculate seeing
+			std::cout << "Skipping star " << i << " overexposured" << std::endl;
 		}
+
+		// Serial update send seeing
+		status << "Seeing on Star" << i << ": " << seeing << std::endl;
+		server->applyData(latestFrame, status.str(), stars, true);
+		serial->send_seeing(seeing);
 	}
 
 	return 0;

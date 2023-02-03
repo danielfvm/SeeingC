@@ -227,6 +227,15 @@ window.onload = () => {
 			// Clear screen
 			ctx.clearRect(0, 0, width, height);
 
+			// Update image
+			setTimeout(() => {
+				$(this).attr('src', $(this).attr('data-lazysrc') + '?a=' + Math.random());
+			}, 100);
+
+			if (profil.length > 1) {
+				return;
+			}
+
 
 			//  Draw boxes around stars on canvas
 			for (let star of stars) {
@@ -276,11 +285,6 @@ window.onload = () => {
 			ctx.moveTo(polarisX, polarisY);
 			ctx.lineTo(polarisX+pltslv_x, polarisY+pltslv_y);
 			ctx.stroke();
-
-			// Update image
-			setTimeout(() => {
-				$(this).attr('src', $(this).attr('data-lazysrc') + '?a=' + Math.random());
-			}, 100);
 		});
 	});
 };

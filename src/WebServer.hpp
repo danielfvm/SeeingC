@@ -18,14 +18,15 @@ public:
 
 	void stop();
 
-	void applyData(Image& img, const std::string& status, const std::vector<StarInfo>& stars);
+	void applyData(Image& img, const std::string& status, const std::vector<StarInfo>& stars, bool calculateProfile);
 
 	void setPlateSolveData(double x, double y);
 
-	Profil m_profile;
-
 private:
 	static void exec(WebServer* server);
+
+	// The information used to create a diagram for the star profile
+	Profil m_profile;
 
 	int m_port;
 	crow::SimpleApp m_app;

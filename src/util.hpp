@@ -49,11 +49,6 @@ struct StarInfo {
   float x() const { return min_x + (max_x - min_x) / 2.0f; }
 
   float y() const { return min_y + (max_y - min_y) / 2.0f; }
-
-  // The smaller this number, the more symmetrical is our star
-  float circleness() const {
-    return std::fabs((max_y - min_y) - (max_x - min_x));
-  }
 };
 
 #define MAX_AREA 20000
@@ -182,7 +177,7 @@ inline int calculate_threshold(const Image &img) {
     return 255;
   }
 
-  return max * 0.3 + avg * 0.7;
+  return max * 0.5 + avg * 0.5;
 }
 
 inline void visualize_threshold(Image& img, int threshold) {
@@ -539,7 +534,6 @@ inline double get_siderial_time(double lon) {
         LMST_s += 86400.0;
     }
     
-    printf("lmst: %f\n", LMST_s / 3600.0);
     return LMST_s / 3600.0;
  }
 

@@ -5,12 +5,8 @@
 	--color: white;
 	--color-header: #3b94e6;
 	--color-main-bg: #282c35;
-	--color-option-bg: #343842;
-}
-
-@font-face {
-    font-family: Dosis;
-    src: url(Dosis.ttf);
+	--color-option-bg: #62625e;
+	--color-option-bg-highlight: #6a6a67;
 }
 
 
@@ -19,11 +15,27 @@ html body {
 	margin: 0px;
 	padding: 0px;
 	overflow: hidden;
-	font-family: Dosis;
-	background: #1d2027;
+    background-color: #4e4d4a;
 	color: #404040;
+    color-scheme: dark;
 }
 
+html, body, input, textarea, select, button, dialog {
+    background-color: #4e4d4a;
+}
+
+html, body, input, textarea, select, button {
+    border-color: #a49988;
+    color: #fffffd;
+}
+
+a {
+    color: #7cbaff;
+}
+
+table {
+    border-color: #898a85;
+}
 
 
 /* Settings window */
@@ -32,7 +44,7 @@ html body {
 	bottom: 0;
 	left: 0;
 	background: #1d2027;
-	width: 275px;
+	width: 271px;
 	position: absolute;
 	overflow-x: hidden;
 	overflow-y: scroll;
@@ -78,18 +90,25 @@ select {
 	color: var(--color);
 	padding: 10px;
 	background: var(--color-option-bg);
-	border: var(--border);
-	border-radius: var(--radius);
-	margin-right: -4.5px;
-	width: 200px;
+	margin-right: -7px;
+	width: 204px;
+	outline: none;
+}
+
+select:focus {
+	background: var(--color-option-bg-highlight);
 }
 
 input {
+	outline: none;
 	color: var(--color);
 	padding: 10px;
 	background: var(--color-option-bg);
-	border: var(--border);
-	border-radius: var(--radius);
+	width: 185px;
+}
+
+input:focus {
+	background: var(--color-option-bg-highlight);
 }
 
 button {
@@ -97,9 +116,6 @@ button {
 	font-weight: bold;
 	padding: 10px;
 	background: var(--color-option-bg);
-	border: var(--border);
-	border-radius: var(--radius);
-	margin-left: 5px;
 }
 
 button:disabled {
@@ -189,9 +205,9 @@ input:checked + .slider:before {
 	position: absolute;
 	width: 100%;
 	height: 100%;
-	-webkit-user-select: none;  
-	-moz-user-select: none;    
-	-ms-user-select: none;      
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
 	user-select: none;
 }
 
@@ -254,4 +270,148 @@ input:checked + .slider:before {
 
 #image {
 	border-radius: var(--radius);
+}
+
+
+
+/*
+ **********************************************
+ * This section was generated with DarkReader *
+ *******************************************+**
+ */
+::placeholder {
+    color: #e0d5c3;
+}
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+    background-color: #73723c !important;
+    color: #fffffd !important;
+}
+::-webkit-scrollbar {
+    background-color: #565652;
+    color: #dacfbc;
+}
+::-webkit-scrollbar-thumb {
+    background-color: #7a7a76;
+}
+::-webkit-scrollbar-thumb:hover {
+    background-color: #8c8d89;
+}
+::-webkit-scrollbar-thumb:active {
+    background-color: #7d7e7a;
+}
+::-webkit-scrollbar-corner {
+    background-color: #4e4d4a;
+}
+* {
+    scrollbar-color: #7a7a76 #565652;
+}
+::selection {
+    background-color: #477bb8 !important;
+    color: #fffffd !important;
+}
+::-moz-selection {
+    background-color: #477bb8 !important;
+    color: #fffffd !important;
+}
+
+/* Text Style */
+*:not(pre, pre *, code, .far, .fa, .glyphicon, [class*="vjs-"], .fab, .fa-github, .fas, .material-icons, .icofont, .typcn, mu, [class*="mu-"], .glyphicon, .icon) {
+  font-family: monospace !important;
+}
+
+/* Invert Style */
+.jfk-bubble.gtx-bubble, .captcheck_answer_label > input + img, span#closed_text > img[src^="https://www.gstatic.com/images/branding/googlelogo"], span[data-href^="https://www.hcaptcha.com/"] > #icon, #bit-notification-bar-iframe, ::-webkit-calendar-picker-indicator {
+    filter: invert(100%) hue-rotate(180deg) brightness(150%) contrast(50%) sepia(20%) !important;
+}
+
+/* Variables Style */
+:root {
+   --darkreader-neutral-background: #494946;
+   --darkreader-neutral-text: #fffceb;
+   --darkreader-selection-background: #477bb8;
+   --darkreader-selection-text: #fffffd;
+}
+
+/* Modified CSS */
+:root {
+    --radius: 8px;
+    --darkreader-border--border: none;
+    --darkreader-text--color: #fffffd;
+    --darkreader-bg--color-header: #5a8bb6;
+    --darkreader-text--color-header: #8fc9f2;
+    --darkreader-bg--color-main-bg: #565657;
+    --darkreader-bg--color-option-bg: #62625e;
+}
+html body {
+    background-color: rgb(77, 77, 77);
+    background-image: none;
+    color: rgb(238, 227, 210);
+}
+.option_view {
+    background-color: rgb(77, 77, 77);
+    background-image: none;
+}
+h2 {
+    color: var(--darkreader-text--color);
+}
+.group > h3 {
+    color: var(--darkreader-text--color-header);
+}
+.option {
+    border-color: currentcolor;
+    background: var(--darkreader-bg--color-main-bg);
+}
+.option > h4 {
+    color: var(--darkreader-text--color);
+}
+select {
+    color: var(--darkreader-text--color);
+    background: var(--darkreader-bg--color-option-bg);
+    border: var(--darkreader-border--border);
+}
+input {
+    color: var(--darkreader-text--color);
+    background: var(--darkreader-bg--color-option-bg);
+    border: var(--darkreader-border--border);
+}
+button {
+    color: var(--darkreader-text--color-header);
+    background: var(--darkreader-bg--color-option-bg);
+    border: var(--darkreader-border--border);
+}
+button:disabled {
+    color: rgb(199, 187, 167);
+}
+button:enabled:hover {
+    background-color: rgb(105, 105, 101);
+    background-image: none;
+}
+button:enabled:active {
+    background-color: rgb(111, 112, 108);
+    background-image: none;
+}
+.slider {
+    background-color: rgb(106, 106, 102);
+}
+.slider::before {
+    background-color: rgb(78, 77, 74);
+}
+input:checked + .slider {
+    background-color: var(--darkreader-bg--color-header);
+}
+input:focus + .slider {
+    box-shadow: rgb(83, 149, 196) 0px 0px 1px;
+}
+#zoom > p {
+    color: var(--darkreader-text--color);
+}
+#status {
+    color: var(--darkreader-text--color);
+}
+#chartwrapper {
+    background-color: rgb(78, 77, 74);
+    background-image: none;
+    border: var(--darkreader-border--border);
 }
