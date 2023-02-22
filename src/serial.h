@@ -5,6 +5,7 @@
 
 #include <string>
 #include <thread>
+#include <vector>
 
 class SerialManager {
 public:
@@ -23,6 +24,8 @@ private:
 
 	void set_blocking(int fd, int should_block);
 
+	double get_avg_seeing();
+
 	static void exec(SerialManager* serial);
 
 	std::thread *m_thread;
@@ -31,7 +34,7 @@ private:
 
 	int m_fd;
 
-	double m_seeing;
+	std::vector<double> m_seeing;
 };
 
 #endif // SERIAL_H

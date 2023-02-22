@@ -31,7 +31,15 @@ bool SerialManager::open_uart(const std::string& device) {
 
 
 void SerialManager::send_seeing(double seeing) {
-	m_seeing = seeing;
+	m_seeing.push_back(seeing);
+}
+
+double SerialManager::get_avg_seeing() {
+	double sum_seeing = 0;
+	for (auto& seeing : m_seeing) {
+		sum_seeing += seeing;
+	}
+	return sum_seeing / m_seeing.size();
 }
 
 void SerialManager::exec(SerialManager* serial) {
@@ -47,12 +55,13 @@ void SerialManager::exec(SerialManager* serial) {
 			execlp("/bin/shutdown", "shutdown", "now", nullptr);
 		} else if (len == 5 && std::memcmp(buffer, "get", 3) == 0) {
 			std::cout << "Send-Data-Request recv from SQM" << std::endl;
-			if (serial->m_seeing > 0) {
+			if (!serial->m_seeing.empty()) {
 				memset(buffer, 0, sizeof(buffer));
-				len = sprintf(buffer, "%03f\r\n", serial->m_seeing); 
+				len = sprintf(buffer, "%03f\r\n", serial->get_avg_seeing()); 
+				serial->m_seeing.clear();
+
 				std::cout << "Send seeing value: " << buffer << std::endl;
 				write(serial->m_fd, buffer, len);
-				serial->m_seeing = 0;
 			} else {
 				std::cout << "No data to be send" << std::endl;
 			}

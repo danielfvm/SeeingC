@@ -14,7 +14,7 @@ echo $1 > VERSION
 rm -rf seeing.*.tar.xz
 
 # Create new archive
-tar -czvf seeing.$1.tar.xz --exclude='build' --exclude='seeing.*.tar.xz' --exclude='settings.txt' .
+tar -czvf seeing.$1.tar.xz --exclude='build' --exclude='data*' --exclude='seeing.*.tar.xz' --exclude='settings.txt' .
 
 rm -r VERSION
 

@@ -33,7 +33,7 @@
 
 #include "serial.h"
 
-#define PORT 8082
+#define PORT 8080
 
 #define DEVICE_NAME "/dev/ttyUSB0"
 #define ASTAP_PROGRAM "/home/daniel/Documents/Diploma/astap_command-line_version_Linux_amd64/astap_cli"

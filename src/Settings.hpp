@@ -17,9 +17,11 @@
 class Option {
 protected:
 	std::string m_group;
+	std::string m_name;
 
 public:
-	Option(const std::string& group) : m_group(group) {}
+	Option(const std::string& group, const std::string& name) 
+        : m_group(group), m_name(name) {}
 
 	virtual std::string get_html(const char* id) = 0;
 
@@ -27,17 +29,45 @@ public:
 
 	virtual std::string store() = 0;
 
-	virtual std::string get_name() = 0;
+	std::string get_name() const {
+      return m_name;
+    }
 
 	std::string get_group() const {
 		return m_group;
 	}
 };
 
+class Settings {
+public:
+	typedef std::map<std::string, Option*> Config;
+
+	Settings(const Config& values);
+
+	~Settings();
+
+	bool store();
+
+	std::vector<crow::json::wvalue> json();
+
+	template<typename T>
+	T* get(const std::string& key) {
+		return m_values.find(key) != m_values.end() 
+            ? dynamic_cast<T*>(m_values[key]) : nullptr;
+	}
+
+private:
+	Config m_values;
+};
+
+
+
+/* Implementations of Option */
+
 class OptionNumber : public Option {
 public:
 	OptionNumber(const std::string& group, const std::string& name, double value, double min, double max, int step = 0) 
-		: Option(group), m_name(name), m_value(value), m_min(min), m_max(max), m_step(step) { }
+		: Option(group, name), m_value(value), m_min(min), m_max(max), m_step(step) { }
 
 	double get() {
 		return m_value;
@@ -74,12 +104,7 @@ public:
 		return input + apply;
 	}
 
-	std::string get_name() {
-		return m_name;
-	}
-
 private:
-	std::string m_name;
 	double m_value;
 	double m_max, m_min; 
 	int m_step;
@@ -89,7 +114,7 @@ private:
 class OptionMode : public Option {
 public:
 	OptionMode(const std::string& group, const std::string& name, int selected, std::vector<std::string> modes) 
-		: Option(group), m_name(name), m_selected(selected), m_modes(modes) {}
+		: Option(group, name), m_selected(selected), m_modes(modes) {}
 
 	std::string get_html(const char* id) {
 		std::string options;
@@ -120,20 +145,15 @@ public:
 		return ss.str();
 	}
 
-	std::string get_name() {
-		return m_name;
-	}
-
 private:
 	std::vector<std::string> m_modes;
-	std::string m_name;
 	int m_selected;
 };
 
 class OptionBool : public Option {
 public:
 	OptionBool(const std::string& group, const std::string& name, bool value) 
-		: Option(group), m_name(name), m_value(value) {}
+		: Option(group, name), m_value(value) {}
 
 	std::string get_html(const char* id) {
 		auto input = fmt("<label class=\"switch\"><input id=\"%s\" type=\"checkbox\" %s><span class=\"slider round\"></span></label>", id, m_value ? "checked" : "");
@@ -155,12 +175,7 @@ public:
 		return m_value ? "1" : "0";
 	}
 
-	std::string get_name() {
-		return m_name;
-	}
-
 private:
-	std::string m_name;
 	bool m_value;
 };
 
@@ -168,7 +183,7 @@ private:
 class OptionButton : public Option {
 public:
 	OptionButton(const std::string& group, const std::string& name, std::function<std::string()> callback) 
-		: Option(group), m_name(name), m_callback(callback) {}
+		: Option(group, name), m_callback(callback) {}
 
 	std::string get_html(const char* id) {
 		return fmt("<button class=\"actionbtn\" id=\"%s\">Run</button>", id);
@@ -184,113 +199,9 @@ public:
 		return "";
 	}
 
-	std::string get_name() {
-		return m_name;
-	}
-
 private:
 	std::function<std::string()> m_callback;
-	std::string m_name;
 	bool m_value;
-};
-
-class Settings {
-public:
-	typedef std::map<std::string, Option*> CFG;
-
-private:
-	CFG m_values;
-
-	void load() {
-		char line[200];
-
-		std::ifstream file(cfg_filename);
-
-		if (!file.is_open()) {
-			return;
-		}
-
-		for (;;) {
-			file.getline(line, 200);
-			if (file.eof()) {
-				break;
-			}
-
-			std::string data(line);
-			int deli = data.find('=');
-
-			std::string key = data.substr(0, deli); 
-			std::string value = data.substr(deli+1);
-
-			if (m_values.find(key) != m_values.end()) {
-				m_values[key]->load(value);
-			}
-		}
-
-		file.close();
-	}
-
-public:
-	Settings(const CFG& values) : m_values(values) {
-		load();
-	}
-
-	~Settings() {
-		for (auto it = m_values.begin(); it != m_values.end(); it ++) {
-			free(it->second);
-		}
-	}
-
-	bool store() {
-		std::ofstream file(cfg_filename);
-
-		if (!file.is_open()) {
-			return false;
-		}
-
-		for (auto it = m_values.begin(); it != m_values.end(); it ++) {
-			std::string data = it->second->store();
-			if (!data.empty()) {
-				file << it->first << '=' << data << std::endl;
-			}
-		}
-
-		file.close();
-		return true;
-	}
-
-	template<typename T>
-	T* get(const std::string& key) {
-		if (m_values.find(key) != m_values.end()) {
-			return dynamic_cast<T*>(m_values[key]);
-		}
-		return nullptr;
-	}
-
-	std::vector<crow::json::wvalue> json() {
-		std::string group_name;
-		crow::json::wvalue group;
-		group["name"] = "";
-
-		std::map<std::string, std::vector<crow::json::wvalue>> groups;
-
-		for (auto it = m_values.begin(); it != m_values.end(); ++it) {
-			groups[it->second->get_group()].push_back({
-				{"option_name", it->second->get_name()},
-				{"option_html", it->second->get_html(it->first.c_str())},
-			});
-		}
-
-		std::vector<crow::json::wvalue> data;
-		for (auto it = groups.begin(); it != groups.end(); ++it) {
-			data.push_back({
-				{"group_name", it->first},
-				{"group_list", it->second},
-			});
-		}
-
-		return data;
-	}
 };
 
 #endif // SETTINGS_HPP
