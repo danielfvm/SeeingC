@@ -268,11 +268,6 @@ input:checked + .slider:before {
 	border: var(--border);
 }
 
-#image {
-	border-radius: var(--radius);
-}
-
-
 
 /*
  **********************************************

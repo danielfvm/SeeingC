@@ -172,7 +172,7 @@ window.onload = () => {
 					display: true,
 					scaleLabel: {
 						display: true,
-						labelString: 'Distance (pixels)'
+						labelString: 'Position (pixels)'
 					},
 					ticks: {
 						autoSkip: true,
@@ -183,7 +183,7 @@ window.onload = () => {
 					display: true,
 					scaleLabel: {
 						display: true,
-						labelString: 'Gray Value',
+						labelString: 'Brightness',
 					},
 					ticks: {
 						beginAtZero: true,
@@ -192,6 +192,9 @@ window.onload = () => {
 			}
 		},
 	});
+
+	// Make font color white
+	Chart.defaults.global.defaultFontColor = "#fff";
 
 	/* Update image, status and indicators */
 	$('img[data-lazysrc]').each(function () {

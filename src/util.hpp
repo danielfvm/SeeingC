@@ -2,6 +2,8 @@
 #define UTIL_HPP
 
 #include "Image.hpp"
+#include "Profil.hpp"
+
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -16,9 +18,9 @@
 #include <utility>
 #include <vector>
 
-#include <stdarg.h>
-#include <memory>
 #include <ctime>
+#include <memory>
+#include <stdarg.h>
 
 #include <tiffio.h>
 
@@ -53,11 +55,12 @@ struct StarInfo {
 
 #define MAX_AREA 20000
 
-inline void scanNeighbours(const Image& img, bool *blacklist, int x, int y, int threshold, StarInfo &info) {
+inline void scanNeighbours(const Image &img, bool *blacklist, int x, int y,
+                           int threshold, StarInfo &info) {
   if (x < 0 || y < 0 || x >= img.get_width() || y >= img.get_height()) {
     return;
   }
-  
+
   if (info.area > MAX_AREA) {
     return;
   }
@@ -92,7 +95,8 @@ inline void scanNeighbours(const Image& img, bool *blacklist, int x, int y, int 
   scanNeighbours(img, blacklist, x, y - 1, threshold, info);
 }
 
-inline int findStars(const Image& img, std::vector<StarInfo> &stars, int threshold, int minsize) {
+inline int findStars(const Image &img, std::vector<StarInfo> &stars,
+                     int threshold, int minsize) {
   StarInfo info = StarInfo::zero();
 
   // A temporary buffer used to ignore already scanned pixels
@@ -113,22 +117,6 @@ inline int findStars(const Image& img, std::vector<StarInfo> &stars, int thresho
   free(blacklist);
 
   return stars.size();
-}
-
-typedef std::pair<std::vector<int>, std::vector<int>> Profil;
-
-inline Profil calc_profile(const Image& img) {
-  std::vector<int> horiz_profile(img.get_width()), vert_profile(img.get_height());
-
-  for (int x = 0; x < img.get_width(); ++x) {
-    for (int y = 0; y < img.get_height(); ++y) {
-      int brightness = img.get_pixel(x, y);
-      horiz_profile[x] += brightness;
-      vert_profile[y] += brightness;
-    }
-  }
-
-  return Profil(horiz_profile, vert_profile);
 }
 
 inline int save_tiff(const char *file, unsigned char *data, int width,
@@ -180,7 +168,7 @@ inline int calculate_threshold(const Image &img) {
   return max * 0.5 + avg * 0.5;
 }
 
-inline void visualize_threshold(Image& img, int threshold) {
+inline void visualize_threshold(Image &img, int threshold) {
   for (int i = 0; i < img.get_pixel_count(); ++i) {
     if (img.m_buffer[i] < threshold) {
       img.m_buffer[i] = 0;
@@ -207,8 +195,8 @@ inline int smooth_pixel(const Image &img, int x, int y) {
   return 4 * vCenter + 2 * vEdges + vCorners;
 }
 
-inline double calculate_centroid(const Image &img, double sx, double sy, double size,
-                                 double &_x, double &_y) {
+inline double calculate_centroid(const Image &img, double sx, double sy,
+                                 double size, double &_x, double &_y) {
   double peak_val = 0.0;
   int peak_x = 0;
   int peak_y = 0;
@@ -353,7 +341,6 @@ inline double calculate_centroid(const Image &img, double sx, double sy, double 
   return mass;
 }
 
-
 inline double calculate_seeing_correlation(std::vector<Image> &frames) {
   /// Calculate coordinates ///
   double cx, cy, avg_x, avg_y;
@@ -364,7 +351,7 @@ inline double calculate_seeing_correlation(std::vector<Image> &frames) {
   std::vector<double> x_positions;
   std::vector<double> y_positions;
 
-  for (const Image& frame : frames) {
+  for (const Image &frame : frames) {
     mass = calculate_centroid(frame, 0, 0, frame.get_width(), cx, cy);
 
     if (mass <= 0.0) {
@@ -374,26 +361,59 @@ inline double calculate_seeing_correlation(std::vector<Image> &frames) {
       y_positions.push_back(cy);
       avg_x += cx;
       avg_y += cy;
-      count ++;
+      count++;
     }
   }
   avg_x /= count;
   avg_y /= count;
 
   if (count < frames.size() / 2) {
-      printf("Too many frames failed to calculate centroid\n");
-      return 0;
+    printf("Too many frames failed to calculate centroid\n");
+    return 0;
   }
 
   double s_xx = 0, s_yy = 0, s_xy = 0;
-  for (int i = 0; i < count; ++ i) {
-    s_xy += (x_positions[i]-avg_x)*(y_positions[i]-avg_y); 
-    s_xx += (x_positions[i]-avg_x)*(x_positions[i]-avg_x); 
-    s_yy += (y_positions[i]-avg_y)*(y_positions[i]-avg_y); 
+  for (int i = 0; i < count; ++i) {
+    s_xy += (x_positions[i] - avg_x) * (y_positions[i] - avg_y);
+    s_xx += (x_positions[i] - avg_x) * (x_positions[i] - avg_x);
+    s_yy += (y_positions[i] - avg_y) * (y_positions[i] - avg_y);
   }
 
   // Korellationskoeffizient
   return std::abs(s_xy / std::sqrt(s_xx * s_yy));
+}
+
+inline double calculate_seeing_fwhm(std::vector<Image> &frames) {
+  Profil profil;
+
+  float fwhm_diff_sum = 0;
+  float prev_fwhm = 0;
+  int count = 0;
+
+  // Calculate the fwhm of each frame and take the difference of each
+  for (const Image &frame : frames) {
+    profil.set_from_image(frame);
+    float fwhm = profil.get_fwhm();
+    if (fwhm > 0) {
+
+      // skip first fwhm value, as it has no prev_fwhm to calculate difference
+      if (prev_fwhm > 0) 
+        fwhm_diff_sum += std::abs(prev_fwhm-fwhm);
+
+      prev_fwhm = fwhm;
+      count ++;
+    }
+  }
+
+  // If it failed about half of all frames we return 0 to signalize that
+  // the calculation is invalid
+  if (count < frames.size() / 2) {
+    printf("Too many frames failed to calculate fwhm, %lu of %zu\n", frames.size()-count, frames.size());
+    return 0;
+  }
+
+  // Result is the average difference of the fwhm value
+  return fwhm_diff_sum / (float)count;
 }
 
 inline double calculate_seeing_average(std::vector<Image> &frames) {
@@ -406,7 +426,7 @@ inline double calculate_seeing_average(std::vector<Image> &frames) {
   std::vector<double> y_positions;
 
   int count = 0;
-  for (const Image& frame : frames) {
+  for (const Image &frame : frames) {
     mass = calculate_centroid(frame, 0, 0, frame.get_width(), cx, cy);
 
     if (mass <= 0.0) {
@@ -414,7 +434,7 @@ inline double calculate_seeing_average(std::vector<Image> &frames) {
     } else {
       x_positions.push_back(cx);
       y_positions.push_back(cy);
-      count ++;
+      count++;
     }
   }
 
@@ -446,7 +466,8 @@ inline double calculate_seeing_average(std::vector<Image> &frames) {
   avg_diff_y /= count;
 
   /// Calculate seeing ///
-  double avg_diff = std::sqrt(avg_diff_x * avg_diff_x + avg_diff_y * avg_diff_y);
+  double avg_diff =
+      std::sqrt(avg_diff_x * avg_diff_x + avg_diff_y * avg_diff_y);
 
   return avg_diff * 2.34; // Bogensekunden
 }
@@ -477,73 +498,64 @@ inline std::vector<std::string> exec(const char *cmd) {
   return result;
 }
 
-template<typename T>
-inline T& goToLine(T& file, unsigned int num){
-    file.seekg(std::ios::beg);
-    for (int i=0; i < num - 1; ++i){
-        file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
-    }
-    return file;
+template <typename T> inline T &goToLine(T &file, unsigned int num) {
+  file.seekg(std::ios::beg);
+  for (int i = 0; i < num - 1; ++i) {
+    file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+  }
+  return file;
 }
 
-template<typename ... Args>
-inline std::string fmt( const std::string& format, Args ... args ) {
-    int size_s = std::snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
-    if( size_s <= 0 ){ throw std::runtime_error( "Error during formatting." ); }
-    auto size = static_cast<size_t>( size_s );
-    std::unique_ptr<char[]> buf( new char[ size ] );
-    std::snprintf( buf.get(), size, format.c_str(), args ... );
-    return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
+template <typename... Args>
+inline std::string fmt(const std::string &format, Args... args) {
+  int size_s = std::snprintf(nullptr, 0, format.c_str(), args...) +
+               1; // Extra space for '\0'
+  if (size_s <= 0) {
+    throw std::runtime_error("Error during formatting.");
+  }
+  auto size = static_cast<size_t>(size_s);
+  std::unique_ptr<char[]> buf(new char[size]);
+  std::snprintf(buf.get(), size, format.c_str(), args...);
+  return std::string(buf.get(),
+                     buf.get() + size - 1); // We don't want the '\0' inside
 }
 
 /*
- * Original code: https://gist.github.com/privong/e830e8a16457f4efe7e6 (18.01.2023)
+ * Original code: https://gist.github.com/privong/e830e8a16457f4efe7e6
+ * (18.01.2023)
  */
 inline double get_siderial_time(double lon) {
 
-    time_t obstime;
-    char obstimestr[40];
-    struct tm obstimestruct;
-    double d, t, GMST_s, LMST_s;
+  time_t obstime;
+  char obstimestr[40];
+  struct tm obstimestruct;
+  double d, t, GMST_s, LMST_s;
 
-    /*
-	double MM = 11;
-	double DD = 27;
-	double YY = 22;
-	double hh = 16;
-	double mm = 29;
+  obstime = time(NULL); // seconds since Unix epoch
 
-    */
-    //obstime = 1669566540;
+  // add JD to get to the UNIX epoch, then subtract to get the days since 2000
+  // Jan 01, 12h UT1
+  d = (obstime / 86400.0) + 2440587.5 - 2451545.0;
+  t = d / 36525;
 
-	obstime = time(NULL);   // seconds since Unix epoch
+  GMST_s = 24110.54841 + 8640184.812866 * t + 0.093104 * pow(t, 2) - 0.0000062 * pow(t, 3);
+  // convert from UT1=0
+  GMST_s += obstime;
+  GMST_s = GMST_s - 86400.0 * floor(GMST_s / 86400.0);
 
-    // add JD to get to the UNIX epoch, then subtract to get the days since 2000 Jan 01, 12h UT1 
-    d = (obstime / 86400.0) + 2440587.5 - 2451545.0;
-    t = d / 36525;
+  // adjust to LMST
+  LMST_s = GMST_s + 3600 * lon / 15.;
 
-    GMST_s = 24110.54841 + 8640184.812866 * t + 0.093104 * pow(t, 2) - 0.0000062 * pow(t, 3);
-    // convert from UT1=0
-    GMST_s += obstime;
-    GMST_s = GMST_s - 86400.0 * floor(GMST_s / 86400.0);
+  if (LMST_s <= 0) { // LMST is between 0 and 24h
+    LMST_s += 86400.0;
+  }
 
-    // adjust to LMST
-    LMST_s = GMST_s + 3600*lon/15.;
-    
-    if (LMST_s <= 0) {  // LMST is between 0 and 24h
-        LMST_s += 86400.0;
-    }
-    
-    return LMST_s / 3600.0;
- }
-
-/*
- * 2h55m = 17/6
- */
-inline double get_deg_polaris(double longitude) {
-    double lmst = get_siderial_time(longitude);
-    return 30.0 * (12.0 - ((lmst-17.0/6.0)/2.0) + 6.0);
+  return LMST_s / 3600.0;
 }
 
+inline double get_deg_polaris(double longitude) {
+  double lmst = get_siderial_time(longitude);
+  return 30.0 * (12.0 - ((lmst - 17.0 / 6.0) / 2.0) + 6.0); // 2h55m = 17/6
+}
 
 #endif

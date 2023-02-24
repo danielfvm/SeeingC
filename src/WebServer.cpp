@@ -148,7 +148,7 @@ void WebServer::applyData(Image &img, const std::string &status, const std::vect
   m_stars = stars;
 
   if (calculateProfile) {
-    m_profile = calc_profile(img);
+    m_profile.set_from_image(img);
   } else {
     m_profile.first.clear();
     m_profile.second.clear();

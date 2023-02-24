@@ -54,6 +54,7 @@ std::string btn_shutdown();
 typedef enum {
 	M_AVERAGE,
 	M_CORRELATION,
+	M_FWHM,
 } MeasureMode;
 
 typedef enum {
@@ -65,11 +66,11 @@ typedef enum {
 Settings settings({
 	{"capture_mode", new OptionMode("Discover Stars", "Capture mode", C_SEARCH, {"Search stars", "Calculate seeing"})},
 	{"star_size", new OptionNumber("Discover Stars", "Minimum star area (px)", 100, 1, 1000, 1)}, 	// Minimum size of a star to count
-	{"exposure", new OptionNumber("Discover Stars", "Exposure (ms)", 10, 0, 1000, 1)},
+	{"exposure", new OptionNumber("Discover Stars", "Exposure (ms)", 10, 0, 10000, 1)},
 	{"gain", new OptionNumber("Discover Stars", "Gain", 300, 0, 480, 1)},
 	{"min_threshold", new OptionNumber("Discover Stars", "Minimum Threshold", 100, 1, 255, 1)},
 	{"v_threshold", new OptionBool("Discover Stars", "Visualize Threshold", false)},
-	{"measure_mode", new OptionMode("Seeing", "Seeing-calculation type", M_AVERAGE, {"Average", "Correlation"})},
+	{"measure_mode", new OptionMode("Seeing", "Seeing-calculation type", M_AVERAGE, {"Average", "Correlation", "FWHM"})},
 	{"roi", new OptionNumber("Seeing", "Region of interest (px)", 128, 32, 512, 32)},
 	{"pause", new OptionNumber("Seeing", "Pause (s)", 5, 0, 60 * 60, 1)},
 	{"measurements", new OptionNumber("Seeing", "Measurments per Seeing", 10, 3, 10000, 1)}, 		// Amount of measurements per seeing value
@@ -124,10 +125,13 @@ double measure_star(Image& frame, const StarInfo& star, int area) {
 	case M_CORRELATION:
 		seeing = calculate_seeing_correlation(frames);
 		break;
+	case M_FWHM:
+		seeing = calculate_seeing_fwhm(frames);
+		break;
 	default:
 		seeing = 0;
 	}
-	printf("Took %d images and calculated: seeing = %0.5f\"\n", measurements, seeing);
+	printf("Took %d images and calculated: seeing = %0.4f\n", measurements, seeing);
 
 	/// Return latest frame for displaying in webinterface ////
 	frame.copy_from(frames[measurements-1]);
@@ -307,9 +311,9 @@ int main(int argc, char** argv) {
 	if (argc >= 2) {
 		camera = new VirtualCamera(argv[1]);
 	} else {
-		if (AsiCamera::get_num_of_cameras() == 0) {
-			std::cerr << "No cameras available!" << std::endl;
-			return EXIT_FAILURE;
+		while (AsiCamera::get_num_of_cameras() == 0) {
+			std::cerr << "No cameras available, trying again in 10s ..." << std::endl;
+			sleep(10);
 		}
 
 		camera = new AsiCamera(0);
@@ -424,7 +428,7 @@ int main(int argc, char** argv) {
 
 			// If it fails to calculate centroid of star, we will skip it too
 			double _x, _y;
-			if (calculate_centroid(img, stars[i].x()-area, stars[i].y()-area, area, _x, _y) == 0.0) {
+			if (settings.get<OptionMode>("measure_mode")->get() == M_AVERAGE && calculate_centroid(img, stars[i].x()-area, stars[i].y()-area, area, _x, _y) == 0.0) {
 				std::cout << "Skipping star "	<< i << " failed to calculate centroid" << std::endl;
 				continue;
 			}
