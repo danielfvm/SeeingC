@@ -55,26 +55,31 @@ struct StarInfo {
 
 #define MAX_AREA 20000
 
-inline void scanNeighbours(const Image &img, bool *blacklist, int x, int y,
-                           int threshold, StarInfo &info) {
+inline void scanNeighbours(const Image &img, bool *blacklist, int x, int y, int threshold, StarInfo &info) {
+  // coordinate is outside of the image
   if (x < 0 || y < 0 || x >= img.get_width() || y >= img.get_height()) {
     return;
   }
 
+  // read in too many pixels in a row, image probably overexposured?
   if (info.area > MAX_AREA) {
     return;
   }
 
+  // convert x and y to an index to get pixel
   int i = y * img.get_width() + x;
   auto data = img.m_buffer[i];
 
+  // pixel is below threshold or was already read, skipping...
   if (data < threshold || blacklist[i]) {
     return;
   }
 
+  // add new pixel to blacklist and increase area
   blacklist[i] = true;
   info.area += 1;
 
+  // check if pixel is a new maximum / minimum
   if (info.max_x == 0 || x > info.max_x) {
     info.max_x = x;
   }
@@ -89,21 +94,21 @@ inline void scanNeighbours(const Image &img, bool *blacklist, int x, int y,
     info.min_y = y;
   }
 
+  // check neighbouring pixel for their threshold value
   scanNeighbours(img, blacklist, x + 1, y, threshold, info);
   scanNeighbours(img, blacklist, x - 1, y, threshold, info);
   scanNeighbours(img, blacklist, x, y + 1, threshold, info);
   scanNeighbours(img, blacklist, x, y - 1, threshold, info);
 }
 
-inline int findStars(const Image &img, std::vector<StarInfo> &stars,
-                     int threshold, int minsize) {
+inline int findStars(const Image &img, std::vector<StarInfo> &stars, int threshold, int minsize) {
   StarInfo info = StarInfo::zero();
 
   // A temporary buffer used to ignore already scanned pixels
   bool *blacklist = (bool *)malloc(img.get_pixel_count());
   std::memset(blacklist, 0, img.get_pixel_count());
 
-  // Go through all pixels in image
+  // Go through all pixels in the image
   for (int x = 0; x < img.get_width(); x += 1) {
     for (int y = 0; y < img.get_height(); y += 1) {
       scanNeighbours(img, blacklist, x, y, threshold, info);
@@ -165,7 +170,7 @@ inline int calculate_threshold(const Image &img) {
     return 255;
   }
 
-  return max * 0.5 + avg * 0.5;
+  return (max + avg) / 2.0;
 }
 
 inline void visualize_threshold(Image &img, int threshold) {

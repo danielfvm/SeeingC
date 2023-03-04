@@ -39,7 +39,7 @@ double SerialManager::get_avg_seeing() {
 	for (auto& seeing : m_seeing) {
 		sum_seeing += seeing;
 	}
-	return sum_seeing / m_seeing.size();
+	return sum_seeing / (double)m_seeing.size();
 }
 
 void SerialManager::exec(SerialManager* serial) {
