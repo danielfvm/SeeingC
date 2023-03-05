@@ -9,4 +9,4 @@ link_directories(${CMAKE_BINARY_DIR}/bin)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
 add_executable(seeing ${NAME_SRC} ${NAME_HEADERS})
 
-target_link_libraries( seeing "/usr/lib/libtiff.so" "/usr/lib/libASICamera2.so" "/usr/lib/libcfitsio.so" )
+target_link_libraries( seeing "${CMAKE_CURRENT_SOURCE_DIR}/lib/libturbojpeg.so.0.3.0" "/usr/lib/libtiff.so" "/usr/lib/libASICamera2.so" "/usr/lib/libcfitsio.so" )
