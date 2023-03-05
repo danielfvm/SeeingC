@@ -1,6 +1,7 @@
 #include "Settings.hpp"
+#include <crow/returnable.h>
 
-Settings::Settings(const Config& values) : m_values(values) {
+Settings::Settings(const Config& values) : m_values(values), m_changed(false) {
 	char line[200];
 
 	std::ifstream file(cfg_filename);
@@ -42,6 +43,8 @@ bool Settings::store() {
 		return false;
 	}
 
+	m_changed = true;
+
 	for (auto it = m_values.begin(); it != m_values.end(); it ++) {
 		std::string data = it->second->store();
 		if (!data.empty()) {
@@ -53,7 +56,7 @@ bool Settings::store() {
 	return true;
 }
 
-std::vector<crow::json::wvalue> Settings::json() {
+crow::json::wvalue Settings::serialize() const {
 	std::string group_name;
 	crow::json::wvalue group;
 	group["name"] = "";

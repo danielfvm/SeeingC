@@ -1,16 +1,14 @@
 #include "Profil.hpp"
+#include <crow/json.h>
 
 Profil::Profil(std::vector<int> &profil_x, std::vector<int> &profil_y) {
   this->first = profil_x;
   this->second = profil_y;
 }
 
-Profil::Profil(const Image &img) {
-  this->set_from_image(img);
-}
+Profil::Profil(const Image &img) { this->set_from_image(img); }
 
-
-void Profil::set_from_image(const Image& img) {
+void Profil::set_from_image(const Image &img) {
   this->first.assign(img.get_width(), 0);
   this->second.assign(img.get_height(), 0);
 
@@ -67,7 +65,8 @@ float Profil::get_fwhm() {
   return f2 - f1;
 }
 
-bool Profil::get_profil(const std::vector<int> &profil, int &min, int &max, int &mid) {
+bool Profil::get_profil(const std::vector<int> &profil, int &min, int &max,
+                        int &mid) {
 
   // Assign default value
   min = max = profil[0];
@@ -88,4 +87,12 @@ bool Profil::get_profil(const std::vector<int> &profil, int &min, int &max, int 
   mid = (max - min) / 2 + min;
 
   return true;
+}
+
+crow::json::wvalue Profil::serialize() const {
+  crow::json::wvalue data;
+  data["horizonzal"] = this->first;
+  data["vertical"] = this->second;
+
+  return data;
 }

@@ -69,7 +69,7 @@ public:
 
   void get_subarea(Image &img, int sx, int sy, int width, int height) const;
 
-  std::string get_encoded_str();
+  std::string get_encoded_str(int quality);
 
   int get_width() const { return m_width; }
 
@@ -80,15 +80,14 @@ public:
   uint8_t get_pixel(int x, int y) const;
   uint8_t& get_pixel(int x, int y);
 
-  void save_fits(const char *filename);
+  void save_fits(const char *filename) const;
 
 private:
   int m_width, m_height;
-  std::string m_build_buffer;
 
   uint8_t to_grayscale(int rgba) const;
 
-  static void write_func(Image *img, void *data, int size);
+  static void write_func(std::string *img, void *data, int size);
 };
 
 #endif // IMAGE_HPP

@@ -82,9 +82,9 @@ public:
 		struct timespec begin, end;
 		clock_gettime(CLOCK_REALTIME, &begin);
 
-		m_data[m_frame].get_subarea(img, m_cx, m_cy, m_width, m_height);
+		m_data[m_frame % m_data.size()].get_subarea(img, m_cx, m_cy, m_width, m_height);
 
-		m_frame = m_frame + 1 < m_data.size() ?  m_frame + 1 : 0;
+		m_frame ++;
 
 		clock_gettime(CLOCK_REALTIME, &end);
 

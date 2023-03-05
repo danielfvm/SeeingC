@@ -1,6 +1,7 @@
 #ifndef WEBSERVER_HPP
 #define WEBSERVER_HPP
 
+#include "Image.hpp"
 #include "Settings.hpp"
 #include "Profil.hpp"
 #include "util.hpp"
@@ -13,15 +14,17 @@
 
 class WebServer {
 public:
-	WebServer(Settings& settings, int socket);
+	WebServer(Settings& settings, int socket, int version);
 
 	void run();
 
 	void stop();
 
-	void applyData(Image& img, const std::string& status, const std::vector<StarInfo>& stars, bool calculateProfile);
+	void applyData(const Image& img, const std::string& status, const std::vector<StarInfo>& stars, bool calculateProfile);
 
 	void setPlateSolveData(double x, double y);
+
+	const Image& getCurrentDisplayedImage() const { return m_image; }
 
 private:
 	static void exec(WebServer* server);
@@ -29,7 +32,8 @@ private:
 	// The information used to create a diagram for the star profile
 	Profil m_profile;
 
-	int m_port;
+	int m_port, m_version;
+	std::string m_image_data;
 	crow::SimpleApp m_app;
 
     std::mutex m_mtx;
@@ -39,8 +43,10 @@ private:
 
 	Settings m_settings;
 
+	Image m_image;
+
 	// Information for the website, set via applyData methode
-	std::string m_image_buffer, m_status_text;
+	std::string m_status_text;
 	std::string m_indicators;
 	std::vector<StarInfo> m_stars;
 

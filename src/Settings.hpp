@@ -48,13 +48,15 @@ public:
 
 	bool store();
 
-	std::vector<crow::json::wvalue> json();
+	crow::json::wvalue serialize() const;
 
 	template<typename T>
 	T* get(const std::string& key) {
 		return m_values.find(key) != m_values.end() 
             ? dynamic_cast<T*>(m_values[key]) : nullptr;
 	}
+
+	bool m_changed;
 
 private:
 	Config m_values;
@@ -95,11 +97,11 @@ public:
 	std::string get_html(const char* id) {
 		std::string input;
 		if (m_step != 0) {
-			input = fmt("<input id=\"%s\" type=\"number\" value=\"%d\" min=\"%d\" max=\"%d\" step=\"%d\" />", id, (int)m_value, (int)m_min, (int)m_max, m_step);
+			input = fmt("<input autocomplete=\"off\" id=\"%s\" type=\"number\" value=\"%d\" min=\"%d\" max=\"%d\" step=\"%d\" />", id, (int)m_value, (int)m_min, (int)m_max, m_step);
 		} else {
-			input = fmt("<input id=\"%s\" type=\"number\" value=\"%0.5f\" min=\"%f\" max=\"%f\" />", id, m_value, m_min, m_max);
+			input = fmt("<input autocomplete=\"off\" id=\"%s\" type=\"number\" value=\"%0.5f\" min=\"%f\" max=\"%f\" />", id, m_value, m_min, m_max);
 		}
-		auto apply = fmt("<button id=\"btn_%s\" disabled>OK</button>", id);
+		auto apply = fmt("<button id=\"btn_%s\">OK</button>", id);
 
 		return input + apply;
 	}
@@ -120,10 +122,10 @@ public:
 		std::string options;
 
 		for (int i = 0; i < m_modes.size(); ++ i) {
-			options += fmt("<option value=\"%d\">%s</option>", i, m_modes[i].c_str());
+			options += fmt("<option value=\"%d\" %s>%s</option>", i, m_selected == i ? "selected" : "", m_modes[i].c_str());
 		}
 
-		return fmt("<select id=\"%s\">%s</select> <button id=\"btn_%s\" disabled>OK</button>", id, options.c_str(), id);
+		return fmt("<select autocomplete=\"off\" id=\"%s\">%s</select> <button id=\"btn_%s\">OK</button>", id, options.c_str(), id);
 	}
 
 	int get() {
@@ -156,8 +158,8 @@ public:
 		: Option(group, name), m_value(value) {}
 
 	std::string get_html(const char* id) {
-		auto input = fmt("<label class=\"switch\"><input id=\"%s\" type=\"checkbox\" %s><span class=\"slider round\"></span></label>", id, m_value ? "checked" : "");
-		auto apply = fmt("<button id=\"btn_%s\" disabled>OK</button>", id);
+		auto input = fmt("<label class=\"switch\"><input autocomplete=\"off\" id=\"%s\" type=\"checkbox\" %s><span class=\"slider round\"></span></label>", id, m_value ? "checked" : "");
+		auto apply = fmt("<button id=\"btn_%s\">OK</button>", id);
 
 		return input + apply;
 	}

@@ -1,8 +1,11 @@
 #include "Image.hpp"
+#include <chrono>
 #include <fitsio.h>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+
+#include "turbojpeg.h"
 
 #include <cstdint>
 #include <cstdlib>
@@ -127,20 +130,44 @@ uint8_t Image::get_pixel(int x, int y) const {
 
 uint8_t &Image::get_pixel(int x, int y) { return m_buffer[y * m_width + x]; }
 
-std::string Image::get_encoded_str() {
-  m_build_buffer.clear();
-  stbi_write_jpg_to_func((stbi_write_func *)write_func, this, m_width, m_height,
-                         1, m_buffer, 100);
-  return m_build_buffer;
+std::string Image::get_encoded_str(int quality) {
+  using std::chrono::high_resolution_clock;
+  using std::chrono::duration_cast;
+  using std::chrono::duration;
+  using std::chrono::milliseconds;
+
+  auto t1 = high_resolution_clock::now();
+
+  const int COLOR_COMPONENTS = 1;
+  long unsigned int _jpegSize = 0;
+  unsigned char* _compressedImage = NULL;
+
+  tjhandle _jpegCompressor = tjInitCompress();
+  tjCompress2(_jpegCompressor, m_buffer, m_width, 0, m_height, TJPF_GRAY, &_compressedImage, &_jpegSize, TJSAMP_GRAY, quality, TJFLAG_FASTDCT);
+
+  std::string buffer(reinterpret_cast< char const* >(_compressedImage), _jpegSize);
+
+  tjFree(_compressedImage);
+  tjDestroy(_jpegCompressor);
+
+
+  auto t2 = high_resolution_clock::now();
+
+  /* Getting number of milliseconds as a double. */
+  duration<double, std::milli> ms_double = t2 - t1;
+
+  std::cout << ms_double.count() << "ms" << std::endl;
+
+  return buffer;
 }
 
-void Image::write_func(Image *img, void *data, int size) {
+void Image::write_func(std::string *img, void *data, int size) {
   for (int i = 0; i < size; ++i) {
-    img->m_build_buffer += ((char *)data)[i];
+    *img += ((char *)data)[i];
   }
 }
 
-void Image::save_fits(const char *filename) {
+void Image::save_fits(const char *filename) const {
   fitsfile *fptr; /* pointer to the FITS file; defined in fitsio.h */
   int status, ii, jj;
   long fpixel = 1, naxis = 2, nelements, exposure;
@@ -148,19 +175,9 @@ void Image::save_fits(const char *filename) {
   //short* array = (short*)malloc(size_t size);
   status = 0; /* initialize status before calling fitsio routines */
 
-  fits_create_file(&fptr, filename, &status); /* create new file
-                                               */
-  /* Create the primary array image (16-bit short integer pixels
-   */
+  fits_create_file(&fptr, filename, &status); /* create new file */
+  /* Create the primary array image (16-bit short integer pixels */
   fits_create_img(fptr, SHORT_IMG, naxis, naxes, &status);
-
-  /* Write a keyword; must pass the ADDRESS of the value */
-  // exposure = 1500.;
-  // fits_update_key(fptr, TLONG, "EXPOSURE", &exposure, "Total Exposure Time ", &status);
-
-  /* Initialize the values in the image with a linear ramp function */ 
-  //for (jj = 0; jj < naxes[1]; jj++) for (ii = 0; ii < naxes[0]; ii++)
-   // array[jj][ii] = m_buffer[jj * m_width + ii];
 
   nelements = naxes[0] * naxes[1]; /* number of pixels to write */
 

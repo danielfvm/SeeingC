@@ -6,12 +6,14 @@
 
 #include <array>
 #include <cmath>
+#include <crow/json.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <math.h>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -51,9 +53,28 @@ struct StarInfo {
   float x() const { return min_x + (max_x - min_x) / 2.0f; }
 
   float y() const { return min_y + (max_y - min_y) / 2.0f; }
+
+  crow::json::wvalue serialize() const {
+    crow::json::wvalue data;
+    data["d"] = diameter();
+    data["x"] = x();
+    data["y"] = y();
+    return data;
+  }
+
+  static crow::json::wvalue serializeVector(std::vector<StarInfo> stars, int limit) {
+    std::vector<crow::json::wvalue> data;
+    for (const StarInfo& star : stars) {
+      if (limit-- < 0) {
+        break;
+      }
+      data.push_back(star.serialize());
+    }
+    return data;
+  }
 };
 
-#define MAX_AREA 20000
+#define MAX_AREA 10000
 
 inline void scanNeighbours(const Image &img, bool *blacklist, int x, int y, int threshold, StarInfo &info) {
   // coordinate is outside of the image
@@ -106,11 +127,19 @@ inline int findStars(const Image &img, std::vector<StarInfo> &stars, int thresho
 
   // A temporary buffer used to ignore already scanned pixels
   bool *blacklist = (bool *)malloc(img.get_pixel_count());
+
+  if (blacklist == nullptr) {
+    std::cout << "Failed malloc in findStars" << std::endl;
+    return 0;
+  }
+
   std::memset(blacklist, 0, img.get_pixel_count());
 
+  int stepsize = std::fmax(1, std::sqrt(minsize)-1);
+
   // Go through all pixels in the image
-  for (int x = 0; x < img.get_width(); x += 1) {
-    for (int y = 0; y < img.get_height(); y += 1) {
+  for (int x = 0; x < img.get_width(); x += stepsize) {
+    for (int y = 0; y < img.get_height(); y += stepsize) {
       scanNeighbours(img, blacklist, x, y, threshold, info);
       if (info.area >= minsize && info.area != MAX_AREA) {
         stars.push_back(StarInfo(info));
@@ -166,7 +195,7 @@ inline int calculate_threshold(const Image &img) {
   int avg = sum / img.get_pixel_count();
 
   // No peaks found in the image
-  if (max - avg < 10) {
+  if (max - avg < 30) {
     return 255;
   }
 

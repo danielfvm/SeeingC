@@ -50,6 +50,7 @@ static SerialManager* serial = nullptr;
 // Prototypes
 std::string btn_platesolving();
 std::string btn_shutdown();
+std::string btn_download();
 
 typedef enum {
 	M_AVERAGE,
@@ -79,8 +80,23 @@ Settings settings({
 	{"latitude", new OptionNumber("Calibrate Telescope", "Latitude", 48.31286, -90, 90)},
 	{"deg_per_px", new OptionNumber("Calibrate Telescope", "Arcsec per Pixel", 2.34, 0, 20)},
 	{"radius_polaris", new OptionNumber("Calibrate Telescope", "Radius of Polaris orbit (Arcsec)", 0.6369444, 0, 10000)},
-	{"btn_shutdown", new OptionButton("Other", "Shutdown Computer", btn_shutdown)},
+	{"btn_shutdown", new OptionButton("Other", "Restart Computer", btn_shutdown)},
+	{"btn_download", new OptionButton("Other", "Save current image", btn_download)},
 });
+
+
+int loadVersion() {
+  std::ifstream input("./VERSION");
+  int version;
+
+  if (input) {
+    input >> version;
+    input.close();
+    return version;
+  }
+
+  return 0;
+}
 
 
 void signalHandler(int signum) {
@@ -140,20 +156,9 @@ double measure_star(Image& frame, const StarInfo& star, int area) {
 }
 
 bool astap_solve(double& ra, double& dc) {
-	int fullwidth, fullheight;
 	std::string buffer;
-	Image img;
 
-	camera->get_fullsize(fullwidth, fullheight);  // get image resolution
-	camera->set_roi(0, 0, fullwidth, fullheight); // and update roi with resolution
-	camera->set_exposure(5000000); // 5s
-	camera->set_gain(100);
-
-	camera->start_capture();
-	camera->get_data(img);
-	camera->stop_capture();
-
-	img.save_fits("temp.fits");
+	server->getCurrentDisplayedImage().save_fits("temp.fits");
 	std::cout << "saved fits" << std::endl;
 
 	if (fork() == 0) {
@@ -261,8 +266,14 @@ int auto_gain(StarInfo& star, int area, int threshold, int star_size_min, int ga
 }
 
 std::string btn_shutdown() {
-	execlp("/bin/shutdown", "shutdown", "now", nullptr);
-	return "exiting";
+	execlp("/bin/shutdown", "shutdown", "-r", "now", nullptr);
+	return "Restarting, WebInterface will be unavailable during restart.";
+}
+
+std::string btn_download() {
+	// This function should actually never be called, as downloading the image should work fully client side
+	// by creating a downloading of the currently displayed canvas
+	return "Creating download link..."; 
 }
 
 
@@ -301,9 +312,14 @@ int main(int argc, char** argv) {
 	// Changes working directory if WD (Working Directory) environment was set
 	chdir(getenv("WD"));
 
-	server = new WebServer(settings, PORT);
+	// Load the version from the "VERSION" file
+	const int VERSION = loadVersion();
+
+	// Start the webserver
+	server = new WebServer(settings, PORT, VERSION);
 	server->run();
 
+	// Start the serial communication
 	serial = new SerialManager(DEVICE_NAME);
 	serial->listen();
 
@@ -334,11 +350,9 @@ int main(int argc, char** argv) {
 	std::vector<StarInfo> stars;
 	Image img;
 
-
 	/// Add signal handler, does the exit on ctrl+c thingy ///
 	std::signal(SIGTERM, signalHandler);
 	std::signal(SIGINT, signalHandler);
-
 
 	/// Start main loop ///
 	while (true) {
@@ -400,18 +414,14 @@ int main(int argc, char** argv) {
 		}
 
 		//// Sleep to not constantly make measurements ///
-		sleep(settings.get<OptionNumber>("pause")->get());
+		for (int i = settings.get<OptionNumber>("pause")->get(); i > 0 && !settings.m_changed; -- i) {
+			sleep(1);
+		}
 
-		// If largest star cannot be calculated, try reducing gain
-		/*if (gain > 0 && calculate_centroid(img, stars[0].x()-area, stars[0].y()-area, area, _x, _y) == 0.0) {
-			int newgain = auto_gain(stars[0], area, threshold, star_size_min, gain);
-
-			if (newgain == 0) { // trying to fix it by changing gain failed, take next smaller star instead
-				camera->set_gain(gain);
-			} else {
-				std::cout << "Reduced gain: " << gain << std::endl;
-			}
-		}*/
+		if (settings.m_changed) {
+			settings.m_changed = false;
+			continue;
+		}
 
 		/// Search for a viable star
 		Image latestFrame;
@@ -429,7 +439,7 @@ int main(int argc, char** argv) {
 			// If it fails to calculate centroid of star, we will skip it too
 			double _x, _y;
 			if (settings.get<OptionMode>("measure_mode")->get() == M_AVERAGE && calculate_centroid(img, stars[i].x()-area, stars[i].y()-area, area, _x, _y) == 0.0) {
-				std::cout << "Skipping star "	<< i << " failed to calculate centroid" << std::endl;
+				std::cout << "Skipping star " << i << " failed to calculate centroid" << std::endl;
 				continue;
 			}
 

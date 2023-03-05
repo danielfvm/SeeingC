@@ -16,7 +16,5 @@ rm -rf seeing.*.tar.xz
 # Create new archive
 tar -czvf seeing.$1.tar.xz --exclude='build' --exclude='data*' --exclude='seeing.*.tar.xz' --exclude='settings.txt' --exclude='.git' .
 
-rm -r VERSION
-
 echo ""
 echo "Finished exporting seeing.$1.tar.xz"
