@@ -1,10 +1,11 @@
 const elementCanvas = $('#canvas_overlay')[0];
 const elementStatus = $('#status')[0];
-const elementImage = $('#image')[0];
+const elementVideo = $('#video')[0];
 const ctx = elementCanvas.getContext("2d");
 
+elementVideo.src = document.location.href.replaceAll("8080/", "8081/image");
+
 let counter = 0;
-let renderImage = null;
 
 function apply(id, value) {
 	if (value.length > 0) {
@@ -15,30 +16,6 @@ function apply(id, value) {
 			window.location.reload();
 		});
 	}
-}
-
-function reloadImage() {
-	var loadPicture = new Image();
-	loadPicture.onload = function () {
-
-		// resize canvas, when image size changes
-		if (elementCanvas.width != this.width || elementCanvas.height != this.height) {
-			elementCanvas.width = this.width;
-			elementCanvas.height = this.height;
-			if (elementCanvas.pan) {
-				elementCanvas.pan.dispose();
-			}
-			elementCanvas.pan = panzoom($("#draggable")[0], {
-				zoomDoubleClickSpeed: 1,
-				minZoom: 0.1,
-		  		initialZoom: window.innerHeight/this.height/2
-			});
-			elementCanvas.pan.moveTo(window.innerWidth/2-window.innerHeight/4-150, window.innerHeight/2-window.innerHeight/4);
-		}
-		renderImage = loadPicture;
-		counter ++;
-	};
-	loadPicture.src = "/image?a=" + Date.now();
 }
 
 async function downloadImage() {
@@ -162,24 +139,34 @@ setInterval(async () => {
 		type: "GET",
 		dataType: 'json',
 		success: (data) => {
-			if (renderImage == null) {
-				elementStatus.innerText = "Image not loaded yet ...";
+			const { width, height } = elementVideo;
+
+			if (!width || !height) {
+				elementStatus.innerText = "Image not fully loaded yet!";
 				return;
 			}
 
-			elementStatus.innerText = 'Dimensions: ' + renderImage.width + 'x' + renderImage.height + '\nDisplayed Frame: ' + counter + '\n' + data["status"];
+			if (elementCanvas.width != width || elementCanvas.height != height) {
+				elementCanvas.width = width;
+				elementCanvas.height = height;
+				if (elementCanvas.pan) {
+					elementCanvas.pan.dispose();
+				}
+				elementCanvas.pan = panzoom($("#draggable")[0], {
+					zoomDoubleClickSpeed: 1,
+					minZoom: 0.1,
+					initialZoom: window.innerHeight/height/2
+				});
+				elementCanvas.pan.moveTo(window.innerWidth/2-window.innerHeight/4-150, window.innerHeight/2-window.innerHeight/4);
+			}
 
-			const { width, height } = renderImage;
+			elementStatus.innerText = 'Dimensions: ' + width + 'x' + height + '\nDisplayed Frame: ' + counter + '\n' + data["status"];
 
 			// hide chart
 			chart.canvas.style.display = "none";
 
 			// refresh overlay canvas and draw indicators and stars
 			ctx.clearRect(0, 0, width, height);
-			ctx.fillStyle = "green";
-			ctx.fillRect(0, 0, width, height);
-
-			ctx.drawImage(renderImage, 0, 0);
 
 			const {profil, stars, radius_polaris, deg_polaris, pltslv_x, pltslv_y} = data;
 
@@ -251,11 +238,7 @@ setInterval(async () => {
 			elementStatus.innerText = "Connection to server failed " + errorThrown;
 		}
 	});
-
-	reloadImage();	
-}, 2000);
-
-reloadImage();	
+}, 1000);
 
 
 // These lines of codes prevent Safaris pan/zoom behaviour which break the page

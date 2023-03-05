@@ -215,7 +215,9 @@ input:checked + .slider:before {
 	bottom: 0;
 	right: 0;
 	z-index: 3;
+}
 
+img {
 	image-rendering: pixelated;
 	image-rendering: -moz-crisp-edges;
 	image-rendering: crisp-edges;

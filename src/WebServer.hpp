@@ -5,6 +5,7 @@
 #include "Settings.hpp"
 #include "Profil.hpp"
 #include "util.hpp"
+#include "mjpeg_streamer.hpp"
 
 
 #include <crow.h>
@@ -33,8 +34,8 @@ private:
 	Profil m_profile;
 
 	int m_port, m_version;
-	std::string m_image_data;
 	crow::SimpleApp m_app;
+    nadjieb::MJPEGStreamer m_streamer;
 
     std::mutex m_mtx;
     std::unordered_set<crow::websocket::connection*> m_users;

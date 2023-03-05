@@ -61,12 +61,6 @@ WebServer::WebServer(Settings &settings, int port, int version) : m_version(vers
     return response;
   });
 
-  CROW_ROUTE(m_app, "/image")([&](const crow::request &req) {
-    auto response = crow::response(m_image_data);
-    response.set_header("Content-Type", "image/jpeg");
-    return response;
-  });
-
   CROW_ROUTE(m_app, "/info")([&](const crow::request &req) {
     auto response = crow::response(m_status_text);
     response.set_header("Content-Type", "text/json");
@@ -91,6 +85,10 @@ WebServer::WebServer(Settings &settings, int port, int version) : m_version(vers
   });
 
   std::cout << "Running Webserver: http://localhost:" << port << std::endl;
+
+
+  m_streamer.start(port + 1);
+  std::cout << "Running MJPEGStreamer: http://localhost:" << (port+1) << std::endl;
 }
 
 void WebServer::exec(WebServer *server) {
@@ -101,13 +99,14 @@ void WebServer::run() { m_thread = new std::thread(WebServer::exec, this); }
 
 void WebServer::stop() {
   if (m_thread != nullptr) {
+    m_streamer.stop();
     m_app.stop();
     m_thread->join();
   }
 }
 
 void WebServer::applyData(const Image &img, const std::string &status, const std::vector<StarInfo> &stars, bool calculateProfile) {
-  m_image_data = m_image.get_encoded_str(75);
+  m_streamer.publish("/image", m_image.get_encoded_str(75));
   m_image.copy_from(img);
 
   m_status_text = status;
