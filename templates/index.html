@@ -2,15 +2,16 @@
 <html>
 	<head>
 		<title>Seeing Interface</title>
-        <link rel="stylesheet" type="text/css" href="static/global.css">
-		<script src='static/panzoom.min.js'></script>
 		<meta http-equiv="Pragma" content="no-cache">
 		<meta http-equiv="Expires" content="-1">
+        <link rel="stylesheet" type="text/css" href="static/global.css">
+		<script src='static/panzoom.min.js'></script>
 		<script src="static/jquery-3.1.0.min.js"></script>
 		<script src="static/Chart.js"></script>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 	</head>
 	<body>
+		<!-- Einstellungen -->
 		<div class="option_view">
 			<h2>Seeing v{{version}}</h2>
 			{{#settings}}
@@ -27,8 +28,10 @@
 			<canvas id="chart"></canvas>
 		</div>
 
+		<!-- Statusanzeige -->
 		<div id="status">Loading</div>
 
+		<!-- Kamerabild -->
 		<div class="viewport">
 			<div id="draggable">
 				<img id="video"></img>
@@ -36,6 +39,7 @@
 			<div>
 		</div>
 
+		<!-- Script -->
 		<script src="static/global.js"></script>
 	</body>
 </html>

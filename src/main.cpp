@@ -3,6 +3,7 @@
 #include "WebServer.hpp"
 #include "Settings.hpp"
 
+#include <chrono>
 #include <longnam.h>
 #include <sstream>
 #include <stdint.h>
@@ -13,6 +14,7 @@
 #include <CCfits/PHDU.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <thread>
 #include <time.h>
 
 #include <cmath>
@@ -50,7 +52,8 @@ static SerialManager* serial = nullptr;
 // Prototypes
 std::string btn_platesolving();
 std::string btn_shutdown();
-std::string btn_download();
+std::string btn_download_image();
+std::string btn_download_log();
 
 typedef enum {
 	M_AVERAGE,
@@ -79,9 +82,10 @@ Settings settings({
 	{"longitude", new OptionNumber("Calibrate Telescope", "Longitude", 16.57736, -180, 180)},
 	{"latitude", new OptionNumber("Calibrate Telescope", "Latitude", 48.31286, -90, 90)},
 	{"deg_per_px", new OptionNumber("Calibrate Telescope", "Arcsec per Pixel", 2.34, 0, 20)},
-	{"radius_polaris", new OptionNumber("Calibrate Telescope", "Radius of Polaris orbit (Arcsec)", 0.6369444, 0, 10000)},
+	{"radius_polaris", new OptionNumber("Calibrate Telescope", "Radius of Polaris orbit (Arcsec)", 2400, 0, 10000)},
 	{"btn_shutdown", new OptionButton("Other", "Restart Computer", btn_shutdown)},
-	{"btn_download", new OptionButton("Other", "Save current image", btn_download)},
+	{"btn_download_image", new OptionButton("Other", "Save current image", btn_download_image)},
+	{"btn_download_log", new OptionButton("Other", "Save log files", btn_download_log)},
 });
 
 
@@ -159,17 +163,17 @@ bool astap_solve(double& ra, double& dc) {
 	std::string buffer;
 
 	server->getCurrentDisplayedImage().save_fits("temp.fits");
-	std::cout << "saved fits" << std::endl;
+	std::cout << "Saved temp.fits for ASTAP and starting ASTAP" << std::endl;
 
 	if (fork() == 0) {
 		// runs command: ./astap_cli -d h18 -f file.fits -ra 3h -spd 180 -s 50 -m 4
-		std::cout << "exec cmd: "<< std::endl;
-		execlp(ASTAP_PROGRAM, "astap", "-f", "temp.fits", "-d", ASTAP_DATABASE, "-ra", "3h", "spd", "180", "-s", "50", "-m", "4", nullptr);
+		execlp(ASTAP_PROGRAM, "astap", "-f", "temp.fits", "-d", ASTAP_DATABASE, "-ra", "3h", "-spd", "180", "-s", "50", nullptr);
 	} else {
 		wait(nullptr);
-		std::cout << "child finished" << std::endl;
+		std::cout << "ASTAP process finished" << std::endl;
 		std::ifstream file("temp.ini");
 		if (!file.is_open()) {
+			std::cout << "No temp.ini file found!" << std::endl;
 			return false;
 		}
 
@@ -177,7 +181,7 @@ bool astap_solve(double& ra, double& dc) {
 		goToLine(file, 2);
 		file >> buffer;
 		if (buffer.compare("PLTSOLVD=F") == 0) {
-			std::cout << "child exited with error" << std::endl;
+			std::cout << "ASTAP exited with error" << std::endl;
 			file.close();
 			return false;
 		}
@@ -191,6 +195,8 @@ bool astap_solve(double& ra, double& dc) {
 		file >> dc;
 
 		file.close();
+
+		std::cout << "Extracted ra: " << ra << " and dc: " << dc << std::endl;
 
 		// Convert to different format
 		ra = (24.0 / 360.0) * ra;
@@ -270,7 +276,7 @@ std::string btn_shutdown() {
 	return "Restarting, WebInterface will be unavailable during restart.";
 }
 
-std::string btn_download() {
+std::string btn_download_image() {
 	// This function should actually never be called, as downloading the image should work fully client side
 	// by creating a downloading of the currently displayed canvas
 	return "Creating download link..."; 
@@ -306,6 +312,18 @@ std::string btn_platesolving() {
 	ss << "delta altitude: " << (altitude-latitude) << std::endl;
 
 	return ss.str();
+}
+
+std::string btn_download_log() {
+	system("journalctl -u seeing -S today > seeing.log");
+	std::cout << "journalctl process finished" << std::endl;
+
+	std::string data = readFile("seeing.log");
+	if (data.empty()) {
+		return "ERROR: No log file created!";
+	}
+
+	return data;
 }
 
 int main(int argc, char** argv) {
@@ -354,6 +372,8 @@ int main(int argc, char** argv) {
 	std::signal(SIGTERM, signalHandler);
 	std::signal(SIGINT, signalHandler);
 
+    auto lastTime = std::chrono::high_resolution_clock::now();
+
 	/// Start main loop ///
 	while (true) {
 		stars.clear();
@@ -369,6 +389,13 @@ int main(int argc, char** argv) {
 		const int gain = settings.get<OptionNumber>("gain")->get();
 		const int area = settings.get<OptionNumber>("roi")->get();
 
+		const auto nowTime = std::chrono::high_resolution_clock::now();
+
+		if (!server->hasClient() && capture_mode == C_SEARCH) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			continue;
+		}
+
 		camera->set_roi(0, 0, width, height);
 		camera->set_exposure(exposure);
 		camera->set_gain(gain);
@@ -382,12 +409,9 @@ int main(int argc, char** argv) {
 		status << "Master frame: " << camera->get_frame() << std::endl;
 
 		const int threshold = std::max(calculate_threshold(img), min_threshold);
-		printf("Thre: %d\n", threshold);
 		status << "Threshold: " << threshold << std::endl;
 
-		printf("Search stars\n");
 		const int count = findStars(img, stars, threshold, star_size_min);
-		printf("Stars found: %d\n", count);
 		status << "Star count: " << count << std::endl;
 
 		if (show_threshold && capture_mode == C_SEARCH) {
@@ -397,29 +421,32 @@ int main(int argc, char** argv) {
 		/// In case no stars were found, retry ///
 		if (count <= 0) {
 			server->applyData(img, status.str(), stars, false);
+
+			if (nowTime > lastTime + std::chrono::seconds(10)) {
+				printf("Found %d stars with threshold %d\n", count, threshold);
+				printf("Master frame: %d\n", camera->get_frame());
+				lastTime = nowTime;
+			}
+
 			continue;
 		}
 
 		// Sort stars, first element is the biggest star
 		std::sort(stars.begin(), stars.end(), sort_stars);
 
-		printf("Brightest star with area %dpx and estimated diameter %0.2fpx at [ %0.2f, %0.2f ]\n", stars[0].area, stars[0].diameter(), stars[0].x(), stars[0].y());
 		status << "Brightest star: [ x:" << stars[0].x() << ", y:" << stars[0].y() << ", area:" << stars[0].area << ", d:" << stars[0].diameter() << " ]" << std::endl;
+
+		if (nowTime > lastTime + std::chrono::seconds(10)) {
+			printf("Found %d stars with threshold %d\n", count, threshold);
+			printf("Brightest star [ a: %dpx, d: %0.2fpx, x: %0.2f, y: %0.2f ]\n", stars[0].area, stars[0].diameter(), stars[0].x(), stars[0].y());
+			printf("Master frame: %d\n", camera->get_frame());
+			lastTime = nowTime;
+		}
 
 
 		/// No need to continue if in capture_mode SEARCH as we do not need to calculate seeing ///
 		if (capture_mode == C_SEARCH) {
 			server->applyData(img, status.str(), stars, false);
-			continue;
-		}
-
-		//// Sleep to not constantly make measurements ///
-		for (int i = settings.get<OptionNumber>("pause")->get(); i > 0 && !settings.m_changed; -- i) {
-			sleep(1);
-		}
-
-		if (settings.m_changed) {
-			settings.m_changed = false;
 			continue;
 		}
 
@@ -459,6 +486,19 @@ int main(int argc, char** argv) {
 		status << "Seeing on Star" << i << ": " << seeing << std::endl;
 		server->applyData(latestFrame, status.str(), stars, true);
 		serial->send_seeing(seeing);
+
+		//// Sleep to not constantly make measurements ///
+		for (int i = settings.get<OptionNumber>("pause")->get(); i > 0 && !settings.m_changed; -- i) {
+			std::this_thread::sleep_for(std::chrono::seconds(1));
+			if (server->hasClient()) {
+				server->applyData(latestFrame, status.str() + "Sleep Timeout: " + std::to_string(i-1) + "s", stars, true);
+			}
+		}
+
+		if (settings.m_changed) {
+			settings.m_changed = false;
+			continue;
+		}
 	}
 
 	return 0;

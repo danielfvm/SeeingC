@@ -1,3 +1,25 @@
+// These lines of codes prevent Safaris pan/zoom behaviour which break the page
+// source: https://stackoverflow.com/questions/37808180/disable-viewport-zooming-ios-10-safari
+document.addEventListener('gesturestart', function (e) {
+    e.preventDefault();
+});
+
+document.addEventListener('touchmove', function (event) {
+  if (event.scale !== 1) { event.preventDefault(); }
+}, false);
+
+var lastTouchEnd = 0;
+document.addEventListener('touchend', function (event) {
+  var now = (new Date()).getTime();
+  if (now - lastTouchEnd <= 300) {
+    event.preventDefault();
+  }
+  lastTouchEnd = now;
+}, false);
+
+
+
+
 const elementCanvas = $('#canvas_overlay')[0];
 const elementStatus = $('#status')[0];
 const elementVideo = $('#video')[0];
@@ -5,7 +27,6 @@ const ctx = elementCanvas.getContext("2d");
 
 elementVideo.src = document.location.href.replaceAll("8080/", "8081/image");
 
-let counter = 0;
 
 function apply(id, value) {
 	if (value.length > 0) {
@@ -18,13 +39,29 @@ function apply(id, value) {
 	}
 }
 
-async function downloadImage() {
-	const date = (new Date()).toLocaleDateString("de-DE").replaceAll(".", "_");
-	const a = document.createElement('a');
+function getFormatedDate() {
+	return (new Date()).toLocaleDateString("de-DE").replaceAll(".", "_");
+}
 
-	a.href = "/fullimage?a=" + Date.now();
-	a.download = date + '.png';
-	a.click();
+
+async function downloadFile(filename, text) {
+	var element = document.createElement('a');
+	element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+	element.setAttribute('download', filename);
+
+	element.style.display = 'none';
+	document.body.appendChild(element);
+
+	element.click();
+
+	document.body.removeChild(element);
+}
+
+async function downloadImage() {
+	const element = document.createElement('a');
+	element.setAttribute('href', "/fullimage?a=" + Date.now());
+	element.setAttribute('download', getFormatedDate() + '.png');
+	element.click();
 }
 
 Math.toRadians = function (deg) {
@@ -64,7 +101,7 @@ $("input[type='checkbox']").each(function () {
 /// ActionButton ///
 $("button[class='actionbtn']").each(function () {
 	this.onclick = () => {
-		if (this.id == "btn_download") {
+		if (this.id == "btn_download_image") {
 			downloadImage();
 			return;
 		}
@@ -73,7 +110,15 @@ $("button[class='actionbtn']").each(function () {
 		this.disabled = true;
 
 		$.get(`/call/${this.id}`, (data) => {
-			alert(data);
+			if (this.id == "btn_download_log") {
+				if (data.startsWith("ERROR:")) {
+					alert(data);
+				} else {
+					downloadFile(getFormatedDate() + '.log', data);
+				}
+			} else {
+				alert(data);
+			}
 
 			this.innerHTML = "Run";
 			this.disabled = false;
@@ -160,7 +205,7 @@ setInterval(async () => {
 				elementCanvas.pan.moveTo(window.innerWidth/2-window.innerHeight/4-150, window.innerHeight/2-window.innerHeight/4);
 			}
 
-			elementStatus.innerText = 'Dimensions: ' + width + 'x' + height + '\nDisplayed Frame: ' + counter + '\n' + data["status"];
+			elementStatus.innerText = 'Dimensions: ' + width + 'x' + height + '\n' + data["status"];
 
 			// hide chart
 			chart.canvas.style.display = "none";
@@ -181,7 +226,7 @@ setInterval(async () => {
 				chart.update();
 
 			} else {
-				//  Draw boxes around stars on canvas
+				//  Draw circles around stars on canvas
 				for (let star of stars) {
 					let d = star["d"] + 3;  // diameter
 					let x = star["x"] + 0.5;
@@ -226,7 +271,7 @@ setInterval(async () => {
 				ctx.stroke();
 
 				// Draw platesolving line
-				ctx.strokeStyle = 'green';
+				ctx.strokeStyle = 'lightgreen';
 				ctx.lineWidth = 3;
 				ctx.beginPath();
 				ctx.moveTo(polarisX, polarisY);
@@ -239,23 +284,3 @@ setInterval(async () => {
 		}
 	});
 }, 1000);
-
-
-// These lines of codes prevent Safaris pan/zoom behaviour which break the page
-// source: https://stackoverflow.com/questions/37808180/disable-viewport-zooming-ios-10-safari
-document.addEventListener('gesturestart', function (e) {
-    e.preventDefault();
-});
-
-document.addEventListener('touchmove', function (event) {
-  if (event.scale !== 1) { event.preventDefault(); }
-}, false);
-
-var lastTouchEnd = 0;
-document.addEventListener('touchend', function (event) {
-  var now = (new Date()).getTime();
-  if (now - lastTouchEnd <= 300) {
-    event.preventDefault();
-  }
-  lastTouchEnd = now;
-}, false);

@@ -7,7 +7,10 @@ Settings::Settings(const Config& values) : m_values(values), m_changed(false) {
 	std::ifstream file(cfg_filename);
 
 	if (!file.is_open()) {
+		std::cout << "Failed to open '" << cfg_filename << "' in Settings::Settings with the reason: " << strerror(errno) << std::endl;
 		return;
+	} else {
+		std::cout << "Opened settings file " << cfg_filename << std::endl;
 	}
 
 	for (;;) {
@@ -23,6 +26,7 @@ Settings::Settings(const Config& values) : m_values(values), m_changed(false) {
 		std::string value = data.substr(deli+1);
 
 		if (m_values.find(key) != m_values.end()) {
+			std::cout << "Loaded setting " << key << " = " << value << std::endl;
 			m_values[key]->load(value);
 		}
 	}
@@ -40,6 +44,7 @@ bool Settings::store() {
 	std::ofstream file(cfg_filename);
 
 	if (!file.is_open()) {
+		std::cout << "Failed to open '" << cfg_filename << "' in Settings::store with the reason: " << strerror(errno) << std::endl;
 		return false;
 	}
 

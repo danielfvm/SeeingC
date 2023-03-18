@@ -11,9 +11,10 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <fstream>
 #include <limits>
-#include <memory>
 #include <math.h>
+#include <memory>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -62,9 +63,10 @@ struct StarInfo {
     return data;
   }
 
-  static crow::json::wvalue serializeVector(std::vector<StarInfo> stars, int limit) {
+  static crow::json::wvalue serializeVector(std::vector<StarInfo> stars,
+                                            int limit) {
     std::vector<crow::json::wvalue> data;
-    for (const StarInfo& star : stars) {
+    for (const StarInfo &star : stars) {
       if (limit-- < 0) {
         break;
       }
@@ -76,7 +78,8 @@ struct StarInfo {
 
 #define MAX_AREA 10000
 
-inline void scanNeighbours(const Image &img, bool *blacklist, int x, int y, int threshold, StarInfo &info) {
+inline void scanNeighbours(const Image &img, bool *blacklist, int x, int y,
+                           int threshold, StarInfo &info) {
   // coordinate is outside of the image
   if (x < 0 || y < 0 || x >= img.get_width() || y >= img.get_height()) {
     return;
@@ -122,7 +125,8 @@ inline void scanNeighbours(const Image &img, bool *blacklist, int x, int y, int 
   scanNeighbours(img, blacklist, x, y - 1, threshold, info);
 }
 
-inline int findStars(const Image &img, std::vector<StarInfo> &stars, int threshold, int minsize) {
+inline int findStars(const Image &img, std::vector<StarInfo> &stars,
+                     int threshold, int minsize) {
   StarInfo info = StarInfo::zero();
 
   // A temporary buffer used to ignore already scanned pixels
@@ -135,7 +139,7 @@ inline int findStars(const Image &img, std::vector<StarInfo> &stars, int thresho
 
   std::memset(blacklist, 0, img.get_pixel_count());
 
-  int stepsize = std::fmax(1, std::sqrt(minsize)-1);
+  int stepsize = std::fmax(1, std::sqrt(minsize) - 1);
 
   // Go through all pixels in the image
   for (int x = 0; x < img.get_width(); x += stepsize) {
@@ -431,18 +435,19 @@ inline double calculate_seeing_fwhm(std::vector<Image> &frames) {
     if (fwhm > 0) {
 
       // skip first fwhm value, as it has no prev_fwhm to calculate difference
-      if (prev_fwhm > 0) 
-        fwhm_diff_sum += std::abs(prev_fwhm-fwhm);
+      if (prev_fwhm > 0)
+        fwhm_diff_sum += std::abs(prev_fwhm - fwhm);
 
       prev_fwhm = fwhm;
-      count ++;
+      count++;
     }
   }
 
   // If it failed about half of all frames we return 0 to signalize that
   // the calculation is invalid
   if (count < frames.size() / 2) {
-    printf("Too many frames failed to calculate fwhm, %lu of %zu\n", frames.size()-count, frames.size());
+    printf("Too many frames failed to calculate fwhm, %lu of %zu\n",
+           frames.size() - count, frames.size());
     return 0;
   }
 
@@ -452,7 +457,7 @@ inline double calculate_seeing_fwhm(std::vector<Image> &frames) {
 
 inline double calculate_seeing_average(std::vector<Image> &frames) {
 
-  /// Calculate coordinates ///
+  // Calculate coordinates
   double cx, cy;
   double mass;
 
@@ -472,7 +477,7 @@ inline double calculate_seeing_average(std::vector<Image> &frames) {
     }
   }
 
-  /// Calculate average ///
+  // Calculate average
   double avg_x = 0.0;
   double avg_y = 0.0;
 
@@ -484,7 +489,7 @@ inline double calculate_seeing_average(std::vector<Image> &frames) {
   avg_x /= (count - 1);
   avg_y /= (count - 1);
 
-  /// Calculate scatter from Average ///
+  // Calculate scatter from Average
   double avg_diff_x = 0.0;
   double avg_diff_y = 0.0;
 
@@ -499,11 +504,8 @@ inline double calculate_seeing_average(std::vector<Image> &frames) {
   avg_diff_x /= count;
   avg_diff_y /= count;
 
-  /// Calculate seeing ///
-  double avg_diff =
-      std::sqrt(avg_diff_x * avg_diff_x + avg_diff_y * avg_diff_y);
-
-  return avg_diff * 2.34; // Bogensekunden
+  // Calculate seeing
+  return std::sqrt(avg_diff_x * avg_diff_x + avg_diff_y * avg_diff_y);
 }
 
 inline std::string hex_string(int length) {
@@ -556,10 +558,9 @@ inline std::string fmt(const std::string &format, Args... args) {
 
 /*
  * Original code: https://gist.github.com/privong/e830e8a16457f4efe7e6
- * (18.01.2023)
+ * (08.03.2023)
  */
 inline double get_siderial_time(double lon) {
-
   time_t obstime;
   char obstimestr[40];
   struct tm obstimestruct;
@@ -572,7 +573,8 @@ inline double get_siderial_time(double lon) {
   d = (obstime / 86400.0) + 2440587.5 - 2451545.0;
   t = d / 36525;
 
-  GMST_s = 24110.54841 + 8640184.812866 * t + 0.093104 * pow(t, 2) - 0.0000062 * pow(t, 3);
+  GMST_s = 24110.54841 + 8640184.812866 * t + 0.093104 * pow(t, 2) -
+           0.0000062 * pow(t, 3);
   // convert from UT1=0
   GMST_s += obstime;
   GMST_s = GMST_s - 86400.0 * floor(GMST_s / 86400.0);
@@ -589,7 +591,23 @@ inline double get_siderial_time(double lon) {
 
 inline double get_deg_polaris(double longitude) {
   double lmst = get_siderial_time(longitude);
-  return 30.0 * (12.0 - ((lmst - 17.0 / 6.0) / 2.0) + 6.0); // 2h55m = 17/6
+  return 30.0 * (12.0 - ((lmst - 35.0 / 12.0) / 2.0) + 6.0); // 2h55m = 35/12
+}
+
+inline std::string readFile(const std::string &fileName) {
+  std::ifstream file(fileName.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
+  if (!file.is_open()) {
+    std::cout << "Failed to open file " << fileName << std::endl;
+    return "";
+  }
+
+  std::ifstream::pos_type fileSize = file.tellg();
+  file.seekg(0, std::ios::beg);
+
+  std::vector<char> bytes(fileSize);
+  file.read(bytes.data(), fileSize);
+
+  return std::string(bytes.data(), fileSize);
 }
 
 #endif

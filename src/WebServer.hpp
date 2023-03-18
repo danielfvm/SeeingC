@@ -27,30 +27,27 @@ public:
 
 	const Image& getCurrentDisplayedImage() const { return m_image; }
 
+	bool hasClient();
+
 private:
 	static void exec(WebServer* server);
 
-	// The information used to create a diagram for the star profile
-	Profil m_profile;
-
 	int m_port, m_version;
-	crow::SimpleApp m_app;
+
     nadjieb::MJPEGStreamer m_streamer;
+	crow::SimpleApp m_app;
 
-    std::mutex m_mtx;
-    std::unordered_set<crow::websocket::connection*> m_users;
+	std::thread *m_thread;
 
-	std::thread *m_thread, *m_image_thread;
-
-	Settings m_settings;
-
-	Image m_image;
+	Image m_image; 		 // Displayed picture
+	Profil m_profile; 	 // The information used to create a diagram for the star profile
 
 	// Information for the website, set via applyData methode
 	std::string m_status_text;
 	std::string m_indicators;
 	std::vector<StarInfo> m_stars;
 
+	// PlateSolving information, set via setPlateSolveData
     double m_pltslv_x = 0;
     double m_pltslv_y = 0;
 };

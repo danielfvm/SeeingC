@@ -69,7 +69,7 @@ public:
 
   void get_subarea(Image &img, int sx, int sy, int width, int height) const;
 
-  std::string get_encoded_str(int quality);
+  std::string get_encoded_str(int quality) const;
 
   int get_width() const { return m_width; }
 

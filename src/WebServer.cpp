@@ -2,6 +2,7 @@
 #include "Settings.hpp"
 #include "util.hpp"
 
+#include <chrono>
 #include <crow/http_response.h>
 #include <crow/json.h>
 #include <crow/logging.h>
@@ -11,7 +12,7 @@
 #include <thread>
 #include <vector>
 
-WebServer::WebServer(Settings &settings, int port, int version) : m_version(version), m_settings(settings), m_port(port), m_thread(nullptr) {
+WebServer::WebServer(Settings &settings, int port, int version) : m_version(version), m_port(port), m_thread(nullptr) {
   crow::logger::setLogLevel(crow::LogLevel::ERROR);
 
   CROW_ROUTE(m_app, "/")([&](const crow::request &req) {
@@ -39,19 +40,26 @@ WebServer::WebServer(Settings &settings, int port, int version) : m_version(vers
   CROW_ROUTE(m_app, "/set/<string>/<string>")([&](const crow::request &req, const std::string &key, const std::string &value) {
     auto option = settings.get<Option>(key);
     if (option == nullptr) {
+      std::cout << "Setting " << key << " was not found, couldn't apply changes." << std::endl;
       auto resp = crow::response("false");
       resp.set_header("Content-Type", "text/plain");
       return resp;
     }
+
     char *result = option->load(value);
     if (result != nullptr) {
+      std::cout << "Setting " << key << " failed to save" << std::endl;
       auto resp = crow::response(result);
       resp.set_header("Content-Type", "text/plain");
       return resp;
     }
 
-    auto resp = crow::response(settings.store() ? "true" : "failed to save data");
+    bool success = settings.store();
+    auto resp = crow::response(success ? "true" : "failed to save data");
     resp.set_header("Content-Type", "text/plain");
+
+    std::cout << "Setting " << key << (success ? " succeeded" : " failed") << " saving" << std::endl;
+
     return resp;
   });
 
@@ -73,7 +81,7 @@ WebServer::WebServer(Settings &settings, int port, int version) : m_version(vers
 
     double deg_per_px = settings.get<OptionNumber>("deg_per_px")->get() / 3600.0;
     double radius_polaris = (settings.get<OptionNumber>("radius_polaris")->get() / 3600.0) / deg_per_px;
-    double deg_polaris = get_deg_polaris(settings.get<OptionNumber>("longitude")->get());
+    double deg_polaris = get_deg_polaris(settings.get<OptionNumber>("longitude")->get()) + 180;
 
     data["deg_per_px"] = deg_per_px;
     data["radius_polaris"] = radius_polaris;
@@ -83,19 +91,20 @@ WebServer::WebServer(Settings &settings, int port, int version) : m_version(vers
 
     return data;
   });
-
-  std::cout << "Running Webserver: http://localhost:" << port << std::endl;
-
-
-  m_streamer.start(port + 1);
-  std::cout << "Running MJPEGStreamer: http://localhost:" << (port+1) << std::endl;
 }
 
 void WebServer::exec(WebServer *server) {
   server->m_app.port(server->m_port).multithreaded().run();
 }
 
-void WebServer::run() { m_thread = new std::thread(WebServer::exec, this); }
+void WebServer::run() { 
+  m_thread = new std::thread(WebServer::exec, this); 
+
+  m_streamer.start(m_port + 1);
+
+  std::cout << "Running Webserver: http://localhost:" << m_port << std::endl;
+  std::cout << "Running MJPEGStreamer: http://localhost:" << (m_port+1) << std::endl;
+}
 
 void WebServer::stop() {
   if (m_thread != nullptr) {
@@ -105,13 +114,38 @@ void WebServer::stop() {
   }
 }
 
+bool WebServer::hasClient() {
+  return m_streamer.hasClient("/image");
+}
+
 void WebServer::applyData(const Image &img, const std::string &status, const std::vector<StarInfo> &stars, bool calculateProfile) {
-  m_streamer.publish("/image", m_image.get_encoded_str(75));
+
+  // Save resources by only encoding and publishing when client is available
+  if (this->hasClient()) {
+
+    // Returns current time used to limit framerate
+    static auto last = std::chrono::high_resolution_clock::now();
+    auto now = std::chrono::high_resolution_clock::now();
+    std::chrono::milliseconds fps(1000 / 10); // limit frame rate to 10 FPS
+
+    // if faster than 10 FPS, slow down
+    if (now - last < fps) {
+      std::this_thread::sleep_for(fps - (now - last));
+    }
+    last = now;
+
+    // Publish the image, with 75% JPEG Quality level
+    m_streamer.publish("/image", img.get_encoded_str(75));
+  }
+
+  // Store copy of image for /fullimage Route
   m_image.copy_from(img);
 
+  // Copy stars and status information
   m_status_text = status;
   m_stars = stars;
 
+  // Calculate Starprofil if set to true
   if (calculateProfile) {
     m_profile.set_from_image(img);
   } else {

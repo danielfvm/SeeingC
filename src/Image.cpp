@@ -130,33 +130,29 @@ uint8_t Image::get_pixel(int x, int y) const {
 
 uint8_t &Image::get_pixel(int x, int y) { return m_buffer[y * m_width + x]; }
 
-std::string Image::get_encoded_str(int quality) {
-  using std::chrono::high_resolution_clock;
-  using std::chrono::duration_cast;
-  using std::chrono::duration;
-  using std::chrono::milliseconds;
+std::string Image::get_encoded_str(int quality) const {
 
-  auto t1 = high_resolution_clock::now();
+  // Start measuring encoding time
+  //auto t1 = std::chrono::high_resolution_clock::now();
 
-  const int COLOR_COMPONENTS = 1;
-  long unsigned int _jpegSize = 0;
-  unsigned char* _compressedImage = NULL;
+  // Variables will be assigned by tjCompress2
+  long unsigned int jpegSize = 0;
+  unsigned char* compressedImage = NULL;
 
+  // Initialize turbojpeg and compress buffer
   tjhandle _jpegCompressor = tjInitCompress();
-  tjCompress2(_jpegCompressor, m_buffer, m_width, 0, m_height, TJPF_GRAY, &_compressedImage, &_jpegSize, TJSAMP_GRAY, quality, TJFLAG_FASTDCT);
+  tjCompress2(_jpegCompressor, m_buffer, m_width, 0, m_height, TJPF_GRAY, &compressedImage, &jpegSize, TJSAMP_GRAY, quality, TJFLAG_FASTDCT);
 
-  std::string buffer(reinterpret_cast< char const* >(_compressedImage), _jpegSize);
+  // Store compressed jpeg in buffer
+  std::string buffer(reinterpret_cast< char const* >(compressedImage), jpegSize);
 
-  tjFree(_compressedImage);
+  // Free resources allocated by turbojpeg
+  tjFree(compressedImage);
   tjDestroy(_jpegCompressor);
 
-
-  auto t2 = high_resolution_clock::now();
-
-  /* Getting number of milliseconds as a double. */
-  duration<double, std::milli> ms_double = t2 - t1;
-
-  std::cout << ms_double.count() << "ms" << std::endl;
+  // Print time taken for compression
+  //auto t2 = std::chrono::high_resolution_clock::now();
+  //std::cout << std::chrono::duration<double, std::milli>(t2-t1).count() << "ms" << std::endl;
 
   return buffer;
 }
@@ -168,21 +164,25 @@ void Image::write_func(std::string *img, void *data, int size) {
 }
 
 void Image::save_fits(const char *filename) const {
-  fitsfile *fptr; /* pointer to the FITS file; defined in fitsio.h */
-  int status, ii, jj;
+  remove(filename); // Delete existing file with that name
+
+  fitsfile *fptr; // Pointer to the FITS file
+  int ii, jj;
   long fpixel = 1, naxis = 2, nelements, exposure;
-  long naxes[2] = {m_width, m_height}; /* image is 300 pixels wide by 200 rows */
-  //short* array = (short*)malloc(size_t size);
-  status = 0; /* initialize status before calling fitsio routines */
-
-  fits_create_file(&fptr, filename, &status); /* create new file */
-  /* Create the primary array image (16-bit short integer pixels */
+  long naxes[2] = {m_width, m_height}; // Size of image
+  int status = 0;
+  
+  // Create new file
+  fits_create_file(&fptr, filename, &status); 
   fits_create_img(fptr, SHORT_IMG, naxis, naxes, &status);
+  
+  // Number of pixels to write
+  nelements = naxes[0] * naxes[1]; 
 
-  nelements = naxes[0] * naxes[1]; /* number of pixels to write */
-
-  /* Write the array of integers to the image */
+  // Write the array of integers to the image
   fits_write_img(fptr, TBYTE, fpixel, nelements, m_buffer, &status);
-  fits_close_file(fptr, &status);    /* close the file */
-  fits_report_error(stderr, status); /* print out any error messages */
+
+  // Close file and print error msg if present
+  fits_close_file(fptr, &status);
+  fits_report_error(stderr, status);
 }
