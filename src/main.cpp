@@ -304,6 +304,25 @@ std::string btn_download_log() {
 	return data;
 }
 
+bool store_seeing(double seeing) {
+	auto t = std::time(nullptr);
+    auto tm = *std::localtime(&t);
+
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%d-%m-%Y %H-%M-%S");
+	std::string str = oss.str();
+
+	std::ofstream out("./measurements/" + str + ".txt", std::ios_base::app);
+	if (!out.is_open()) {
+		return false;
+	}
+
+	out << seeing << std::endl;
+	out.close();
+
+	return true;
+}
+
 int main(int argc, char** argv) {
 	// Changes working directory if WD (Working Directory) environment was set
 	chdir(getenv("WD"));
@@ -459,7 +478,7 @@ int main(int argc, char** argv) {
 
 		/// Search for a viable star
 		Image latestFrame;
-		double seeing;
+		double seeing = 0;
 		int i;
 
 		for (i = 0; i < stars.size(); ++ i) {
@@ -492,9 +511,13 @@ int main(int argc, char** argv) {
 		// Serial update send seeing
 		status << "Seeing on Star" << i << ": " << seeing << std::endl;
 		server->applyData(latestFrame, status.str(), stars, true);
-		serial->send_seeing(seeing);
 
-		// Sleep to not constantly make measurements
+		if (seeing > 0) {
+			serial->send_seeing(seeing);
+			store_seeing(seeing);
+		}
+
+		// Sleep to not constantly make measurements using the pause setting from the webinterface
 		for (int i = settings->get<OptionNumber>("pause")->get(); i > 0 && !settings->m_changed; -- i) {
 			std::this_thread::sleep_for(std::chrono::seconds(1));
 			if (server->hasClient()) {

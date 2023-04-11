@@ -2,11 +2,19 @@
 
 while true
 do
-  echo "Checking for updates"
+  echo "Checking for plugged usb sticks"
 
-  # Check if the file exists in the /media/usb/ directory
+  # Check if it should copy data to the measurements folder
+  if [ -d /media/usb/measurements ] && [ -z "$(ls -A /media/usb/measurements)" ]
+  then
+    rm -rf /media/usb/measurements
+    cp /opt/seeing/measurements /media/usb/measurements
+  fi
+
+  # Check if the update-file exists in the /media/usb/ directory
   if [ -f /media/usb/seeing.*.tar.xz ]
   then
+    echo "Detected available update file"
     # Extract the version number from the file name
     version=$(basename /media/usb/seeing.*.tar.xz | cut -d '.' -f 2)
 

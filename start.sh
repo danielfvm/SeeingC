@@ -2,7 +2,7 @@
 
 _term() { 
   echo "Caught SIGTERM signal!" 
-  kill -TERM "$CHILD" 2>/dev/null
+  kill -TERM "$CHILD_UPDATER" 2>/dev/null
   exit
 }
 
@@ -12,8 +12,8 @@ BASEDIR=$(dirname "$0")
 
 # Start autoupdater and store pid, so that we can kill it if this 
 # script gets terminated
-$BASEDIR/autoupdater.sh &
-CHILD=$!
+$BASEDIR/usbdaemon.sh &
+CHILD_UPDATER=$!
 
 # Start seeing in infinite loop, in case that it crashes we can
 # restart it after a 5 sec timeout
