@@ -15,7 +15,7 @@
 
 class WebServer {
 public:
-	WebServer(Settings& settings, int socket, int version);
+	WebServer(Settings* settings, int socket, int version);
 
 	void run();
 

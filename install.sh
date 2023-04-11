@@ -13,6 +13,7 @@ cp -r . /opt/seeing
 # enable autostart
 cp seeing.service /etc/systemd/system/seeing.service
 chmod 640 /etc/systemd/system/seeing.service
+chmod 666 /opt/seeing/
 systemctl daemon-reload
 systemctl enable seeing.service
 systemctl stop seeing.service

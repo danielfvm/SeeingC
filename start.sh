@@ -2,19 +2,25 @@
 
 _term() { 
   echo "Caught SIGTERM signal!" 
-  kill -TERM "$CHILD1" 2>/dev/null
-  kill -TERM "$CHILD2" 2>/dev/null
+  kill -TERM "$CHILD" 2>/dev/null
+  exit
 }
 
 trap _term SIGTERM
 
 BASEDIR=$(dirname "$0")
 
-WD=$BASEDIR $BASEDIR/build/bin/seeing &
-CHILD1=$! 
-
+# Start autoupdater and store pid, so that we can kill it if this 
+# script gets terminated
 $BASEDIR/autoupdater.sh &
-CHILD2=$!
+CHILD=$!
 
-wait "$CHILD1"
-wait "$CHILD2"
+# Start seeing in infinite loop, in case that it crashes we can
+# restart it after a 5 sec timeout
+while true
+do
+  echo "Starting seeing with working directory $BASEDIR"
+  WD=$BASEDIR $BASEDIR/build/bin/seeing
+  echo "Seeing stopped, restarting in 5 seconds"
+  sleep 5
+done

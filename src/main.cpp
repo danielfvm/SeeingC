@@ -48,6 +48,7 @@
 static WebServer* server = nullptr;
 static Camera* camera = nullptr;
 static SerialManager* serial = nullptr;
+static Settings* settings = nullptr;
 
 // Prototypes
 std::string btn_platesolving();
@@ -66,29 +67,6 @@ typedef enum {
 	C_CALCULATE,
 } CaptureMode;
 
-/* All settings accessible from the webinterface menu are defined here */
-Settings settings({
-	{"capture_mode", new OptionMode("Discover Stars", "Capture mode", C_SEARCH, {"Search stars", "Calculate seeing"})},
-	{"star_size", new OptionNumber("Discover Stars", "Minimum star area (px)", 100, 1, 1000, 1)}, 	// Minimum size of a star to count
-	{"exposure", new OptionNumber("Discover Stars", "Exposure (ms)", 10, 0, 10000, 1)},
-	{"gain", new OptionNumber("Discover Stars", "Gain", 300, 0, 480, 1)},
-	{"min_threshold", new OptionNumber("Discover Stars", "Minimum Threshold", 100, 1, 255, 1)},
-	{"v_threshold", new OptionBool("Discover Stars", "Visualize Threshold", false)},
-	{"measure_mode", new OptionMode("Seeing", "Seeing-calculation type", M_AVERAGE, {"Average", "Correlation", "FWHM"})},
-	{"roi", new OptionNumber("Seeing", "Region of interest (px)", 128, 32, 512, 32)},
-	{"pause", new OptionNumber("Seeing", "Pause (s)", 5, 0, 60 * 60, 1)},
-	{"measurements", new OptionNumber("Seeing", "Measurments per Seeing", 10, 3, 10000, 1)}, 		// Amount of measurements per seeing value
-	{"btn_solving", new OptionButton("Calibrate Telescope", "Plate solving", btn_platesolving)},
-	{"longitude", new OptionNumber("Calibrate Telescope", "Longitude", 16.57736, -180, 180)},
-	{"latitude", new OptionNumber("Calibrate Telescope", "Latitude", 48.31286, -90, 90)},
-	{"deg_per_px", new OptionNumber("Calibrate Telescope", "Arcsec per Pixel", 2.34, 0, 20)},
-	{"radius_polaris", new OptionNumber("Calibrate Telescope", "Radius of Polaris orbit (Arcsec)", 2400, 0, 10000)},
-	{"btn_shutdown", new OptionButton("Other", "Restart Computer", btn_shutdown)},
-	{"btn_download_image", new OptionButton("Other", "Save current image", btn_download_image)},
-	{"btn_download_log", new OptionButton("Other", "Save log files", btn_download_log)},
-});
-
-
 int loadVersion() {
   std::ifstream input("./VERSION");
   int version;
@@ -104,7 +82,7 @@ int loadVersion() {
 
 
 void signalHandler(int signum) {
-	/// Free memory & exit ///
+	// Free memory & exit
 	if (camera != nullptr)
 		camera->close();
 	if (server != nullptr)
@@ -116,17 +94,17 @@ void signalHandler(int signum) {
 }
 
 double measure_star(Image& frame, const StarInfo& star, int area) {
-	const int measurements = settings.get<OptionNumber>("measurements")->get();
-	const int measure_mode = settings.get<OptionMode>("measure_mode")->get();
+	const int measurements = settings->get<OptionNumber>("measurements")->get();
+	const int measure_mode = settings->get<OptionMode>("measure_mode")->get();
 
 	std::vector<Image> frames;
 
-	/// Set region of interest ///
+	// Set region of interest
 	int roi_x = star.x()-area/2.0;
 	int roi_y = star.y()-area/2.0;
 	camera->set_roi(roi_x, roi_y, area, area);
 
-	/// Start capturing data ///
+	// Start capturing data
 	camera->start_capture();
 	for (int i = 0; i < measurements; ++ i) {
 		Image frame;
@@ -136,7 +114,7 @@ double measure_star(Image& frame, const StarInfo& star, int area) {
 	camera->stop_capture();
 	std::cout << "Captured frames, dropped: " << camera->get_dropped_frames() << std::endl;
 
-	/// Calculating seeing from frames ///
+	// Calculating seeing from frames
 	double seeing;
 	switch (measure_mode) {
 	case M_AVERAGE:
@@ -153,7 +131,7 @@ double measure_star(Image& frame, const StarInfo& star, int area) {
 	}
 	printf("Took %d images and calculated: seeing = %0.4f\n", measurements, seeing);
 
-	/// Return latest frame for displaying in webinterface ////
+	// Return latest frame for displaying in webinterface 
 	frame.copy_from(frames[measurements-1]);
 
 	return seeing;
@@ -289,8 +267,8 @@ std::string btn_platesolving() {
 		return "Failed to solve image";
 	}
 
-	double longitude = settings.get<OptionNumber>("longitude")->get();
-	double latitude = settings.get<OptionNumber>("latitude")->get();
+	double longitude = settings->get<OptionNumber>("longitude")->get();
+	double latitude = settings->get<OptionNumber>("latitude")->get();
 	double lmst = get_siderial_time(longitude);
 
 	// Current image center
@@ -298,7 +276,7 @@ std::string btn_platesolving() {
 	get_azimut_and_height(lmst, rightAscension, declination, latitude, azimuth, altitude);
 
 	// Difference in pixel
-	double degPerPx = settings.get<OptionNumber>("deg_per_px")->get() / 3600.0;
+	double degPerPx = settings->get<OptionNumber>("deg_per_px")->get() / 3600.0;
 	double diffX = (azimuth-0)/degPerPx;
 	double diffY = (altitude-latitude)/degPerPx;
 
@@ -333,6 +311,29 @@ int main(int argc, char** argv) {
 	// Load the version from the "VERSION" file
 	const int VERSION = loadVersion();
 
+	// Apply Settings, has to be after chdir otherwise it cannot find the settings->txt file
+	settings = new Settings({
+		{"capture_mode", new OptionMode("Discover Stars", "Capture mode", C_SEARCH, {"Search stars", "Calculate seeing"})},
+		{"star_size", new OptionNumber("Discover Stars", "Minimum star area (px)", 50, 1, 1000, 1)}, 	// Minimum size of a star to count
+		{"exposure", new OptionNumber("Discover Stars", "Exposure (ms)", 10, 0, 10000, 1)},
+		{"gain", new OptionNumber("Discover Stars", "Gain", 300, 0, 480, 1)},
+		{"min_threshold", new OptionNumber("Discover Stars", "Minimum Threshold", 100, 1, 255, 1)},
+		{"v_threshold", new OptionBool("Discover Stars", "Visualize Threshold", false)},
+		{"measure_mode", new OptionMode("Seeing", "Seeing-calculation type", M_AVERAGE, {"Average", "Correlation", "FWHM"})},
+		{"roi", new OptionNumber("Seeing", "Region of interest (px)", 128, 32, 512, 32)},
+		{"pause", new OptionNumber("Seeing", "Pause (s)", 5, 0, 60 * 60, 1)},
+		{"measurements", new OptionNumber("Seeing", "Measurments per Seeing", 10, 3, 10000, 1)}, 		// Amount of measurements per seeing value
+		{"btn_solving", new OptionButton("Calibrate Telescope", "Plate solving", btn_platesolving)},
+		{"longitude", new OptionNumber("Calibrate Telescope", "Longitude", 16.57736, -180, 180)},
+		{"latitude", new OptionNumber("Calibrate Telescope", "Latitude", 48.31286, -90, 90)},
+		{"deg_per_px", new OptionNumber("Calibrate Telescope", "Arcsec per Pixel", 5.76, 0, 20)},
+		{"radius_polaris", new OptionNumber("Calibrate Telescope", "Radius of Polaris orbit (Arcsec)", 2400, 0, 10000)},
+		{"btn_shutdown", new OptionButton("Other", "Restart Computer", btn_shutdown)},
+		{"btn_download_image", new OptionButton("Other", "Save current image", btn_download_image)},
+		{"btn_download_log", new OptionButton("Other", "Save log files", btn_download_log)},
+	});
+
+
 	// Start the webserver
 	server = new WebServer(settings, PORT, VERSION);
 	server->run();
@@ -340,16 +341,22 @@ int main(int argc, char** argv) {
 	// Start the serial communication
 	serial = new SerialManager(DEVICE_NAME);
 	serial->listen();
+	
 
-	/// Open asi camera, or if a path was provided the virtual camera ///
+	// Add signal handler, does the exit on ctrl+c thingy
+	std::signal(SIGTERM, signalHandler);
+	std::signal(SIGINT, signalHandler);
+
+
+	// Open asi camera, or if a path was provided the virtual camera
+	int retry_count = 3;
 	if (argc >= 2) {
 		camera = new VirtualCamera(argv[1]);
 	} else {
-		while (AsiCamera::get_num_of_cameras() == 0) {
-			std::cerr << "No cameras available, trying again in 10s ..." << std::endl;
+		while (AsiCamera::get_num_of_cameras() <= 0) {
+			std::cout << "No cameras available, trying again in 10s ..." << std::endl;
 			sleep(10);
 		}
-
 		camera = new AsiCamera(0);
 	}
 
@@ -358,36 +365,36 @@ int main(int argc, char** argv) {
 		return EXIT_FAILURE;
 	}
 
-	/// Get camera resolution ///
+	// Get camera resolution
 	int width, height;
 	camera->get_fullsize(width, height);
 	std::cout << "Camera resolution: " << width << "x" << height << std::endl;
 
-	/// Temporary variables ///
+	// Temporary variables
 	std::stringstream status;
 	std::vector<StarInfo> stars;
 	Image img;
 
-	/// Add signal handler, does the exit on ctrl+c thingy ///
+	// Add signal handler, does the exit on ctrl+c thingy
 	std::signal(SIGTERM, signalHandler);
 	std::signal(SIGINT, signalHandler);
 
     auto lastTime = std::chrono::high_resolution_clock::now();
 
-	/// Start main loop ///
+	// Start main loop
 	while (true) {
 		stars.clear();
 		status.str("");
 		status.clear();
 
-		/// Get settings ///
-		const int star_size_min = settings.get<OptionNumber>("star_size")->get();
-		const int capture_mode = settings.get<OptionMode>("capture_mode")->get();
-		const int show_threshold = settings.get<OptionBool>("v_threshold")->get();
-		const int min_threshold = settings.get<OptionNumber>("min_threshold")->get();
-		const int exposure = settings.get<OptionNumber>("exposure")->get() * 1000; // stored as ms but used as us
-		const int gain = settings.get<OptionNumber>("gain")->get();
-		const int area = settings.get<OptionNumber>("roi")->get();
+		// Get settings
+		const int star_size_min = settings->get<OptionNumber>("star_size")->get();
+		const int capture_mode = settings->get<OptionMode>("capture_mode")->get();
+		const int show_threshold = settings->get<OptionBool>("v_threshold")->get();
+		const int min_threshold = settings->get<OptionNumber>("min_threshold")->get();
+		const int exposure = settings->get<OptionNumber>("exposure")->get() * 1000; // stored as ms but used as us
+		const int gain = settings->get<OptionNumber>("gain")->get();
+		const int area = settings->get<OptionNumber>("roi")->get();
 
 		const auto nowTime = std::chrono::high_resolution_clock::now();
 
@@ -401,7 +408,7 @@ int main(int argc, char** argv) {
 		camera->set_gain(gain);
 
 
-		/// Find biggest star ///
+		// Find biggest star
 		camera->start_capture();
 		camera->get_data(img);
 		camera->stop_capture();
@@ -418,7 +425,7 @@ int main(int argc, char** argv) {
 			visualize_threshold(img, threshold);
 		}
 
-		/// In case no stars were found, retry ///
+		// In case no stars were found, retry
 		if (count <= 0) {
 			server->applyData(img, status.str(), stars, false);
 
@@ -465,7 +472,7 @@ int main(int argc, char** argv) {
 
 			// If it fails to calculate centroid of star, we will skip it too
 			double _x, _y;
-			if (settings.get<OptionMode>("measure_mode")->get() == M_AVERAGE && calculate_centroid(img, stars[i].x()-area, stars[i].y()-area, area, _x, _y) == 0.0) {
+			if (settings->get<OptionMode>("measure_mode")->get() == M_AVERAGE && calculate_centroid(img, stars[i].x()-area, stars[i].y()-area, area, _x, _y) == 0.0) {
 				std::cout << "Skipping star " << i << " failed to calculate centroid" << std::endl;
 				continue;
 			}
@@ -487,16 +494,16 @@ int main(int argc, char** argv) {
 		server->applyData(latestFrame, status.str(), stars, true);
 		serial->send_seeing(seeing);
 
-		//// Sleep to not constantly make measurements ///
-		for (int i = settings.get<OptionNumber>("pause")->get(); i > 0 && !settings.m_changed; -- i) {
+		// Sleep to not constantly make measurements
+		for (int i = settings->get<OptionNumber>("pause")->get(); i > 0 && !settings->m_changed; -- i) {
 			std::this_thread::sleep_for(std::chrono::seconds(1));
 			if (server->hasClient()) {
 				server->applyData(latestFrame, status.str() + "Sleep Timeout: " + std::to_string(i-1) + "s", stars, true);
 			}
 		}
 
-		if (settings.m_changed) {
-			settings.m_changed = false;
+		if (settings->m_changed) {
+			settings->m_changed = false;
 			continue;
 		}
 	}

@@ -12,20 +12,20 @@
 #include <thread>
 #include <vector>
 
-WebServer::WebServer(Settings &settings, int port, int version) : m_version(version), m_port(port), m_thread(nullptr) {
+WebServer::WebServer(Settings* settings, int port, int version) : m_version(version), m_port(port), m_thread(nullptr) {
   crow::logger::setLogLevel(crow::LogLevel::ERROR);
 
-  CROW_ROUTE(m_app, "/")([&](const crow::request &req) {
+  CROW_ROUTE(m_app, "/")([settings, this](const crow::request &req) {
     crow::mustache::context ctx;
-    ctx["settings"] = settings.serialize();
+    ctx["settings"] = settings->serialize();
     ctx["version"] = m_version;
 
     auto page = crow::mustache::load("index.html");
     return page.render(ctx);
   });
 
-  CROW_ROUTE(m_app, "/call/<string>")([&](const crow::request &req, const std::string &key) {
-    auto option = settings.get<OptionButton>(key);
+  CROW_ROUTE(m_app, "/call/<string>")([settings, this](const crow::request &req, const std::string &key) {
+    auto option = settings->get<OptionButton>(key);
     if (option == nullptr) {
       auto resp = crow::response("false");
       resp.set_header("Content-Type", "text/plain");
@@ -37,8 +37,8 @@ WebServer::WebServer(Settings &settings, int port, int version) : m_version(vers
     return resp;
   });
 
-  CROW_ROUTE(m_app, "/set/<string>/<string>")([&](const crow::request &req, const std::string &key, const std::string &value) {
-    auto option = settings.get<Option>(key);
+  CROW_ROUTE(m_app, "/set/<string>/<string>")([settings, this](const crow::request &req, const std::string &key, const std::string &value) {
+    auto option = settings->get<Option>(key);
     if (option == nullptr) {
       std::cout << "Setting " << key << " was not found, couldn't apply changes." << std::endl;
       auto resp = crow::response("false");
@@ -54,34 +54,34 @@ WebServer::WebServer(Settings &settings, int port, int version) : m_version(vers
       return resp;
     }
 
-    bool success = settings.store();
+    bool success = settings->store();
     auto resp = crow::response(success ? "true" : "failed to save data");
     resp.set_header("Content-Type", "text/plain");
 
-    std::cout << "Setting " << key << (success ? " succeeded" : " failed") << " saving" << std::endl;
+    std::cout << "Setting " << key << (success ? " succeeded" : " failed") << " saving to " << option->store() << std::endl;
 
     return resp;
   });
 
-  CROW_ROUTE(m_app, "/fullimage")([&](const crow::request &req) {
+  CROW_ROUTE(m_app, "/fullimage")([settings, this](const crow::request &req) {
     auto response = crow::response(m_image.get_encoded_str(100));
     response.set_header("Content-Type", "image/jpeg");
     return response;
   });
 
-  CROW_ROUTE(m_app, "/info")([&](const crow::request &req) {
+  CROW_ROUTE(m_app, "/info")([settings, this](const crow::request &req) {
     auto response = crow::response(m_status_text);
     response.set_header("Content-Type", "text/json");
 
     crow::json::wvalue data;
     data["status"] = m_status_text;
     data["stars"] = StarInfo::serializeVector(m_stars, 50);
-    data["settings"] = settings.serialize();
+    data["settings"] = settings->serialize();
     data["profil"] = m_profile.serialize();
 
-    double deg_per_px = settings.get<OptionNumber>("deg_per_px")->get() / 3600.0;
-    double radius_polaris = (settings.get<OptionNumber>("radius_polaris")->get() / 3600.0) / deg_per_px;
-    double deg_polaris = get_deg_polaris(settings.get<OptionNumber>("longitude")->get()) + 180;
+    double deg_per_px = settings->get<OptionNumber>("deg_per_px")->get() / 3600.0;
+    double radius_polaris = (settings->get<OptionNumber>("radius_polaris")->get() / 3600.0) / deg_per_px;
+    double deg_polaris = get_deg_polaris(settings->get<OptionNumber>("longitude")->get()) + 180;
 
     data["deg_per_px"] = deg_per_px;
     data["radius_polaris"] = radius_polaris;
