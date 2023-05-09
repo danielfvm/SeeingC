@@ -1,0 +1,14 @@
+capture_mode=1
+deg_per_px=5.76
+exposure=10
+gain=300
+latitude=48.3129
+longitude=16.5774
+measure_mode=0
+measurements=10
+min_threshold=100
+pause=5
+radius_polaris=2400
+roi=128
+star_size=5
+v_threshold=0

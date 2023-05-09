@@ -3,10 +3,12 @@
 _term() { 
   echo "Caught SIGTERM signal!" 
   kill -TERM "$CHILD_UPDATER" 2>/dev/null
+  kill -TERM "$CHILD_SEEING" 2>/dev/null
   exit
 }
 
 trap _term SIGTERM
+trap _term SIGSTOP
 
 BASEDIR=$(dirname "$0")
 
@@ -21,6 +23,7 @@ while true
 do
   echo "Starting seeing with working directory $BASEDIR"
   WD=$BASEDIR $BASEDIR/build/bin/seeing
+  CHILD_SEEING=$!
   echo "Seeing stopped, restarting in 5 seconds"
   sleep 5
 done

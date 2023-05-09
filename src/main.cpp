@@ -304,20 +304,29 @@ std::string btn_download_log() {
 	return data;
 }
 
+struct Comma final : std::numpunct<char> {
+    char do_decimal_point() const override { return ','; }
+};
+
 bool store_seeing(double seeing) {
 	auto t = std::time(nullptr);
     auto tm = *std::localtime(&t);
 
-    std::ostringstream oss;
-    oss << std::put_time(&tm, "%d-%m-%Y %H-%M-%S");
-	std::string str = oss.str();
+    std::ostringstream date, time;
+    date << std::put_time(&tm, "%y%m%d");
+    time << std::put_time(&tm, "%H:%M");
 
-	std::ofstream out("./measurements/" + str + ".txt", std::ios_base::app);
+	std::ofstream out("./measurements/SE" + date.str() + ".dat", std::ios_base::app);
+    out.imbue(std::locale(std::locale::classic(), new Comma));
+
 	if (!out.is_open()) {
 		return false;
 	}
 
-	out << seeing << std::endl;
+	char data[40];
+	int len = sprintf(data, "%s\t%.2f\n", time.str().c_str(), seeing);
+
+	out.write(data, len);
 	out.close();
 
 	return true;
@@ -398,7 +407,7 @@ int main(int argc, char** argv) {
 	std::signal(SIGTERM, signalHandler);
 	std::signal(SIGINT, signalHandler);
 
-    auto lastTime = std::chrono::high_resolution_clock::now();
+	auto lastTime = std::chrono::high_resolution_clock::now();
 
 	// Start main loop
 	while (true) {
@@ -519,6 +528,7 @@ int main(int argc, char** argv) {
 
 		// Sleep to not constantly make measurements using the pause setting from the webinterface
 		for (int i = settings->get<OptionNumber>("pause")->get(); i > 0 && !settings->m_changed; -- i) {
+			status << "Pause " << i << "s" << std::endl;
 			std::this_thread::sleep_for(std::chrono::seconds(1));
 			if (server->hasClient()) {
 				server->applyData(latestFrame, status.str() + "Sleep Timeout: " + std::to_string(i-1) + "s", stars, true);

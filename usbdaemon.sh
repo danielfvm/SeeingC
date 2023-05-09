@@ -7,8 +7,9 @@ do
   # Check if it should copy data to the measurements folder
   if [ -d /media/usb/measurements ] && [ -z "$(ls -A /media/usb/measurements)" ]
   then
+    echo "Detected request of copying measurement folders"
     rm -rf /media/usb/measurements
-    cp /opt/seeing/measurements /media/usb/measurements
+    cp -r /opt/seeing/measurements /media/usb/measurements
   fi
 
   # Check if the update-file exists in the /media/usb/ directory
