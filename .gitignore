@@ -47,4 +47,6 @@ bin/*
 
 *.tar.xz
 
-measurement
+measurements
+data
+data2
