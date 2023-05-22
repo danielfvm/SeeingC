@@ -219,6 +219,9 @@ inline bool sort_stars(const StarInfo &i1, const StarInfo &i2) {
 }
 
 inline int smooth_pixel(const Image &img, int x, int y) {
+  if (x < 0 || y < 0 || x >= img.get_width() || y >= img.get_height())
+	return 0;
+
   const uint8_t *data = img.m_buffer;
   int size = img.get_width();
 
@@ -455,7 +458,7 @@ inline double calculate_seeing_fwhm(std::vector<Image> &frames) {
   return fwhm_diff_sum / (float)count;
 }
 
-inline double calculate_seeing_average(std::vector<Image> &frames) {
+inline double calculate_seeing_average(const std::vector<Image> &frames) {
 
   // Calculate coordinates
   double cx, cy;
@@ -497,15 +500,12 @@ inline double calculate_seeing_average(std::vector<Image> &frames) {
     double estimated_x = x_positions[0] + avg_x * i;
     double estimated_y = y_positions[0] + avg_y * i;
 
-    avg_diff_x += std::abs(estimated_x - x_positions[i]);
-    avg_diff_y += std::abs(estimated_y - y_positions[i]);
+    avg_diff_x += (estimated_x - x_positions[i]) * (estimated_x - x_positions[i]);
+    avg_diff_y += (estimated_y - y_positions[i]) * (estimated_y - y_positions[i]);
   }
 
-  avg_diff_x /= count;
-  avg_diff_y /= count;
-
   // Calculate seeing
-  return std::sqrt(avg_diff_x * avg_diff_x + avg_diff_y * avg_diff_y);
+  return std::sqrt(avg_diff_x + avg_diff_y);
 }
 
 inline std::string hex_string(int length) {

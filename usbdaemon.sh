@@ -2,8 +2,6 @@
 
 while true
 do
-  echo "Checking for plugged usb sticks"
-
   # Check if it should copy data to the measurements folder
   if [ -d /media/usb/measurements ] && [ -z "$(ls -A /media/usb/measurements)" ]
   then

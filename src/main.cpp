@@ -107,9 +107,11 @@ double measure_star(Image& frame, const StarInfo& star, int area) {
 	// Start capturing data
 	camera->start_capture();
 	for (int i = 0; i < measurements; ++ i) {
-		Image frame;
-		camera->get_data(frame);
-		frames.push_back(frame);
+		Image img;
+		camera->get_data(img);
+		frames.push_back(img);
+
+	    server->applyData(img, "Capturing Frame " + std::to_string(i) + " of " + std::to_string(measurements), {}, true);
 	}
 	camera->stop_capture();
 	std::cout << "Captured frames, dropped: " << camera->get_dropped_frames() << std::endl;
@@ -407,7 +409,7 @@ int main(int argc, char** argv) {
 	std::signal(SIGTERM, signalHandler);
 	std::signal(SIGINT, signalHandler);
 
-	auto lastTime = std::chrono::high_resolution_clock::now();
+    auto lastTime = std::chrono::high_resolution_clock::now();
 
 	// Start main loop
 	while (true) {
@@ -474,7 +476,7 @@ int main(int argc, char** argv) {
 		if (nowTime > lastTime + std::chrono::seconds(10)) {
 			printf("Found %d stars with threshold %d\n", count, threshold);
 			printf("Brightest star [ a: %dpx, d: %0.2fpx, x: %0.2f, y: %0.2f ]\n", stars[0].area, stars[0].diameter(), stars[0].x(), stars[0].y());
-			printf("Master frame: %d\n", camera->get_frame());
+			printf("Master frame: %d, dim: %d, %d\n", camera->get_frame(), img.get_width(), img.get_height());
 			lastTime = nowTime;
 		}
 
@@ -528,7 +530,6 @@ int main(int argc, char** argv) {
 
 		// Sleep to not constantly make measurements using the pause setting from the webinterface
 		for (int i = settings->get<OptionNumber>("pause")->get(); i > 0 && !settings->m_changed; -- i) {
-			status << "Pause " << i << "s" << std::endl;
 			std::this_thread::sleep_for(std::chrono::seconds(1));
 			if (server->hasClient()) {
 				server->applyData(latestFrame, status.str() + "Sleep Timeout: " + std::to_string(i-1) + "s", stars, true);

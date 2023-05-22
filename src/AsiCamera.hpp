@@ -79,6 +79,8 @@ public:
 		int _w, _h, bin;
 
 		ASIGetROIFormat(m_id, &_w, &_h, &bin, &type);
+		m_width = width;
+		m_height = height;
 
 		return ASISetROIFormat(m_id, width, height, bin, type) == ASI_SUCCESS
 			&& ASISetStartPos(m_id, cx, cy) == ASI_SUCCESS;
