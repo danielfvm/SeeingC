@@ -326,7 +326,7 @@ bool store_seeing(double seeing) {
 	}
 
 	char data[40];
-	int len = sprintf(data, "%s\t%.2f\n", time.str().c_str(), seeing);
+	int len = sprintf(data, "%s\t%.2f\r\n", time.str().c_str(), seeing);
 
 	out.write(data, len);
 	out.close();
